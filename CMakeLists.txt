@@ -1,8 +1,10 @@
-cmake_minimum_required(VERSION 2.8.1)
+cmake_minimum_required(VERSION 3.21.0)
 project(mst)
 
 set(CMAKE_BUILD_TYPE "release")
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+
+set(OpenCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/install/)
 
 find_package(OpenCV REQUIRED)
 
