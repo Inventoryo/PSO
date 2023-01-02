@@ -55,7 +55,7 @@ void ACO::initInfoMap( utility::MAP &global_map) {
 					grid_ptr->cover_rate += T_ - global_map(col_cov, row_cov).search_time;
 				}
 			}
-			grid_ptr->cover_rate /= search_R_*search_R_*forget_time;
+			grid_ptr->cover_rate /= search_R_*search_R_ * FORGET_TIME;
 			//printf("grid_ptr[%d,%d].cover_rate =%f\n", row, col, grid_ptr->cover_rate);
 			grid_ptr++;
 		}

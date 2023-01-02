@@ -306,7 +306,7 @@ public:
 		for (int row_idx = row_min; row_idx <= row_max; row_idx++) {
 			for (int col_idx = col_min; col_idx <= col_max; col_idx++) {
 				utility::point2D grid_pose((col_idx + 0.5) * resolution_, (row_idx + 0.5) * resolution_);
-				if (dist(grid_pose, uav->state.position) <= uav->search_r + 0.5 * RESOLUTION)
+				if (dist(grid_pose, uav->state.position) <= uav->search_r + 0.5 * resolution_)
 					map_[row_idx * width_ + col_idx].search_time = cunt;
 			}
 		}
@@ -340,11 +340,11 @@ public:
 		~nion() {};
 		std::vector<int> parent;
 		std::vector<std::vector<int>> barrel;
-		int unionsearch(int root) //���Ҹ����?
+		int unionsearch(int root) //���Ҹ����?
 		{
 			int son, tmp;
 			son = root;
-			while (root != parent[root]) //Ѱ�Ҹ����?
+			while (root != parent[root]) //Ѱ�Ҹ����?
 				root = parent[root];
 			while (son != root) //·��ѹ��
 			{
@@ -360,7 +360,7 @@ public:
 			int x, y;
 			x = unionsearch(root1);
 			y = unionsearch(root2);
-			if (x != y) //��������?���Ͱ��������ڵ���ͨ��֧�ϲ�
+			if (x != y) //��������?���Ͱ��������ڵ���ͨ��֧�ϲ�
 				parent[y] = x;
 		}
 		void setup_barrel() {

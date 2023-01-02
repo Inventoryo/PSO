@@ -1,3 +1,9 @@
 [submodule "3rdParty/opencv"]
 	path = 3rdParty/opencv
 	url = https://github.com/opencv/opencv.git
+[submodule "3rdParty/iniparser"]
+	path = 3rdParty/iniparser
+	url = https://github.com/ndevilla/iniparser.git
+[submodule "3rdParty/eigen"]
+	path = 3rdParty/eigen
+	url = https://gitlab.com/libeigen/eigen.git

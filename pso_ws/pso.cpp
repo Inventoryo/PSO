@@ -9,14 +9,15 @@ int Fdrections[9][2] = { { -1, -1 }, { 0, -1 }, { 1, -1 },
 						 { -1,  0 }, { 0,  0 }, { 1,  0 },
 						 { -1,  1 }, { 0,  1 }, { 1,  1 }, };
 
-utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::State & uav_state, int border) {
+utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::State & uav_state, int border, int resolution) {
+
 	int layer_idx = MAX_LAYER_NUM - 2;
-	int x_idx = uav_state.position.x / RESOLUTION;
-	x_idx = min(max(0, x_idx), WIDTH - 1) + border;
+	int x_idx = uav_state.position.x / resolution;
+	x_idx = min(max(0, x_idx), layers[0].cols - 1) + border;
 	x_idx >>= layer_idx ;
 
-	int y_idx = uav_state.position.y / RESOLUTION;
-	y_idx = min(max(0, y_idx), HEIGHT - 1) + border;
+	int y_idx = uav_state.position.y / resolution;
+	y_idx = min(max(0, y_idx), layers[0].rows - 1) + border;
 	y_idx >>= layer_idx ;
 	
 	int uav_dir = 4 * (uav_state.velocity.y + 3 * PI / 4) / PI;
@@ -61,21 +62,21 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::St
 	*/
 	x_idx = (best_x + 0.5) * pow(2, layer_idx) - border;
 	y_idx = (best_y + 0.5) * pow(2, layer_idx) - border;
-	return utility::point2D(x_idx * RESOLUTION, y_idx * RESOLUTION);
+	return utility::point2D(x_idx * resolution, y_idx * resolution);
 }
 
-double getUncertanty(const vector<cv::Mat> &layers, const double x, const double y, int border){
+double getUncertanty(const vector<cv::Mat> &layers, const double x, const double y, int border, int resulution, int used_layer_num){
 	double res = 0 ;
-	int x_idx = x / RESOLUTION;
-	x_idx = x_idx < 0 ? 0 : x_idx >= WIDTH ? WIDTH - 1 : x_idx;
+	int x_idx = x / resulution;
+	x_idx = x_idx < 0 ? 0 : x_idx >= layers[0].cols ? layers[0].cols - 1 : x_idx;
 	x_idx += border;
-	int y_idx = y / RESOLUTION;
-	y_idx = y_idx < 0 ? 0 : y_idx >= HEIGHT ? HEIGHT - 1 : y_idx;
+	int y_idx = y / resulution;
+	y_idx = y_idx < 0 ? 0 : y_idx >= layers[0].rows ? layers[0].rows - 1 : y_idx;
 	y_idx += border;
-	int layer_num = USED_LAYERS;
-	int weight = 1;// << layer_num;
+
+	int weight = 1;// << used_layer_num;
 	double sum_w = 0;
-	for(int i = 0; i < layer_num; i++){
+	for(int i = 0; i < used_layer_num; i++){
 		sum_w += weight;
 		res += weight * layers[i].at<uint16_t>(y_idx, x_idx);
 		x_idx >>= 1;
@@ -85,30 +86,54 @@ double getUncertanty(const vector<cv::Mat> &layers, const double x, const double
 	return res / sum_w;
 }
 
-void PSO::creatParticleSwarm(int particle_num)
+void PSO::initParams(const string& config_file_path){
+	dictionary *dict = nullptr;
+	dict = iniparser_load(config_file_path.c_str());
+	if(dict == nullptr){
+		printf("fail to parser from %s\n", config_file_path.c_str());
+		return;
+	}
+
+	tao_    = iniparser_getdouble(dict, "pso_param:tao", -1);
+	weight_ = iniparser_getdouble(dict, "pso_param:weight", -1);
+	c1_ = iniparser_getdouble(dict, "pso_param:c1", -1);
+	c2_ = iniparser_getdouble(dict, "pso_param:c2", -1);
+	w2_ = iniparser_getdouble(dict, "pso_param:w2", -1);
+	eta_ = iniparser_getdouble(dict, "pso_param:eta", -1);
+	max_iteration_ = iniparser_getint(dict, "pso_param:max_iteration", -1);
+	particle_num_  = iniparser_getint(dict, "pso_param:particle_num", -1);
+	used_layer_num_  = iniparser_getint(dict, "pso_param:used_layer_num", -1);
+
+	//file_path
+	const char *particle_state_path = iniparser_getstring(dict, "file_path:particle_state_path", NULL);
+	output_particle_state.open(particle_state_path, ios::binary);
+
+	const char *uav_state_path = iniparser_getstring(dict, "file_path:uav_state_path", NULL);
+	output_uav_state.open(uav_state_path, ios::binary);
+
+	const char *best_state_path = iniparser_getstring(dict, "file_path:best_state_path", NULL);
+	output_best_state.open(best_state_path, ios::binary);
+
+	return;
+}
+
+void PSO::create(const string& config_file_path)
 {
-	particle_num_ = particle_num;
+	initParams(config_file_path);
 	border_ = 64;
 	swarm_ = (particle*)malloc(particle_num_ * sizeof(particle));
-	int height = HEIGHT + 2 * border_;
-	int width  = WIDTH  + 2 * border_;
-	cout << "height" << height << "width" << width;
+	int height = global_map_.height_ + 2 * border_;
+	int width  = global_map_.width_  + 2 * border_;
 	for(uint8_t layer = 0 ;layer < MAX_LAYER_NUM;layer++){
 		cv::Mat mat(height, width, CV_16UC1, cv::Scalar(0));
 		layers.push_back(mat);
 		height = (height + 1) / 2;//ceil
 		width  = (width + 1) / 2;
 	}
-	
-	cout << "height" << height << "width" << width;
-	output_particle_state.open(particle_state_path, ios::binary);
-	output_uav_state.open(uav_state_path, ios::binary);
-	output_best_state.open(best_state_path, ios::binary);
-
 	return;
 };
 
-void PSO::destoryParticleSwarm()
+void PSO::destory()
 {
 	output_particle_state.close();
 	output_uav_state.close();
@@ -128,9 +153,9 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 	cur_uav_ = &(uav[uav_idx]);
 	min_R_ = pow(cur_uav_->state.velocity.x, 2) / cur_uav_->Acc_limite_y[1];
 	
-	for(int i = 0; i < HEIGHT; i++){
-		for(int j = 0; j < WIDTH; j++){
-			layers[0].at<uint16_t>(i + border_, j + border_) = cur_T > (global_map.map_[i * WIDTH + j].search_time + forget_time) ? forget_time : (cur_T - global_map.map_[i * WIDTH + j].search_time);
+	for(int i = 0; i < global_map_.height_; i++){
+		for(int j = 0; j < global_map_.width_; j++){
+			layers[0].at<uint16_t>(i + border_, j + border_) = cur_T > (global_map.map_[i * global_map_.width_ + j].search_time + FORGET_TIME) ? FORGET_TIME : (cur_T - global_map.map_[i * global_map_.width_ + j].search_time);
 		}
 	}
 	
@@ -142,7 +167,7 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 	if (uav_idx == DEBUG_IDX)
 		printf("debug points\n");
 
-	area_guider_ = findBestPoints(layers, cur_uav_->state, border_);
+	area_guider_ = findBestPoints(layers, cur_uav_->state, border_, global_map_.resolution_);
 	base_angle_ = atan2(area_guider_.y - cur_uav_->state.position.y, area_guider_.x - cur_uav_->state.position.x);//-pi~pi
 	base_angle_ = base_angle_ >= 0 ? base_angle_ : 2 * PI + base_angle_;//0~2*pi
 
@@ -150,9 +175,9 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 	cv::Mat temp;
 	temp.copySize(layers[0]);
 	cv::convertScaleAbs(layers[0], temp, 0.2);
-    cv::namedWindow("Ô­Í¼Ïñ", cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("", cv::WINDOW_AUTOSIZE);
 
-    cv::imshow("Ô­Í¼Ïñ", temp);
+    cv::imshow("", temp);
 	cv::waitKey(10);
 #endif
 
@@ -207,16 +232,16 @@ double PSO::calculateFitness(particle* particle){
 	double fitness_3 = 0;
 	//fitness1
 	//double t = global_map_->computeUncetanty(particle->state, cur_uav_->search_r, cur_T_);
-	double t = getUncertanty(layers, particle->state.position.x, particle->state.position.y, border_) / forget_time;
+	double t = getUncertanty(layers, particle->state.position.x, particle->state.position.y, border_, global_map_.resolution_, used_layer_num_) / FORGET_TIME;
 	//double p  = (1 - exp(-tao * t)) ;
 	double d = utility::dubinsDistance(cur_uav_->state, particle->state, min_R_);
-	d = (d - cur_uav_->search_r) / RESOLUTION ;
+	d = (d - cur_uav_->search_r) / global_map_.resolution_ ;
 	fitness_1 = t / (1.0 + d * d );
 
 	double c;
 	/*
 	for (int target_id = 0; target_id < TARGET_NUM; target_id++) {//target influence
-		if (cur_T_ - cur_uav_->target_state[target_id].second < forget_time) {//target has been spotted
+		if (cur_T_ - cur_uav_->target_state[target_id].second < FORGET_TIME) {//target has been spotted
 			c = 1 + (*target_)[target_id].Vel_limite[1]/(cur_uav_->Vel_limite[1] + 1);
 			d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
 			d /= 5000;
@@ -226,14 +251,14 @@ double PSO::calculateFitness(particle* particle){
 	}
 	*/
 
-	int cur_uav_num = cur_T_ < ADD_TIME ? uav_num - extra_uav_num : uav_num;
-	for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {//uav avoidance
-		c = cur_uav_->Vel_limite[1] /((*uav_)[uav_id].Vel_limite[1] + 1);
-		d = utility::dist((*uav_)[uav_id].state.position, particle->state.position);
-		d = d / ((*uav_)[uav_id].search_r + cur_uav_->search_r);
-		if( d < 1.1 && uav_id != cur_uav_->id)
-			fitness_2 -= 1 * c / (1.0 + d * d );
-	}
+	// int cur_uav_num = uav_->size();
+	// for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {//uav avoidance
+	// 	c = cur_uav_->Vel_limite[1] /((*uav_)[uav_id].Vel_limite[1] + 1);
+	// 	d = utility::dist((*uav_)[uav_id].state.position, particle->state.position);
+	// 	d = d / ((*uav_)[uav_id].search_r + cur_uav_->search_r);
+	// 	if( d < 1.1 && uav_id != cur_uav_->id)
+	// 		fitness_2 -= 1 * c / (1.0 + d * d );
+	// }
 
 	//fitness3
 	double angle2 = atan2(particle->state.position.y - cur_uav_->state.position.y , particle->state.position.x - cur_uav_->state.position.x);//-pi~pi
@@ -242,7 +267,7 @@ double PSO::calculateFitness(particle* particle){
 	angle2 = angle2 <= PI ? angle2 : 2 * PI - angle2;//0~pi
 	fitness_3 = 1.0/(1.0 + exp(angle2));
 
-	fitness = W1 * fitness_1 + W2 * fitness_2 + W3 * fitness_3;
+	fitness = eta_ * fitness_1 + (1 - eta_) * fitness_3 + w2_ * fitness_2 ;
 
 	return fitness;
 };
@@ -253,15 +278,15 @@ void PSO::updateParticleStates(particle* particle, int iteration)
 	double r2 = rand() % 1000 / 1000.0;
 	double line_X = particle->state.velocity.x * cos(particle->state.velocity.y);//
 	double line_Y = particle->state.velocity.x * sin(particle->state.velocity.y);//
-	double temp_weight = (double)(MAX_ITERATION - iteration) / MAX_ITERATION * WEIGHT + 0.5 * WEIGHT;
+	double temp_weight = (double)(max_iteration_ - iteration) / max_iteration_ * weight_ + 0.5 * weight_;
 	//double temp_weight = 1.0;
-	line_X = temp_weight * line_X + c1 * r1 *(particle->Pbest_state.position.x - particle->state.position.x) + c2 * r2 * (Gbest_state_.position.x - particle->state.position.x) ;//+ F_sum.x*DT;
-	line_Y = temp_weight * line_Y + c1 * r1 *(particle->Pbest_state.position.y - particle->state.position.y) + c2 * r2 * (Gbest_state_.position.y - particle->state.position.y) ;//+ F_sum.y*DT;
+	line_X = temp_weight * line_X + c1_ * r1 *(particle->Pbest_state.position.x - particle->state.position.x) + c2_ * r2 * (Gbest_state_.position.x - particle->state.position.x) ;//+ F_sum.x*DT;
+	line_Y = temp_weight * line_Y + c1_ * r1 *(particle->Pbest_state.position.y - particle->state.position.y) + c2_ * r2 * (Gbest_state_.position.y - particle->state.position.y) ;//+ F_sum.y*DT;
 
 	particle->state.velocity.x = sqrt(line_X * line_X + line_Y * line_Y);//linear velocity
 	if(particle->state.velocity.x <= 0.0001 )//stoped
 		particle->state.velocity.y = 0;
-	else 
+	else
 		particle->state.velocity.y = atan2(line_Y, line_X) >= 0 ? atan2(line_Y, line_X) : 2*PI + atan2(line_Y, line_X);
 
 	particle->state.velocity.x = min(cur_uav_->Vel_limite[1], max((double)cur_uav_->Vel_limite[0], (double)particle->state.velocity.x));
@@ -273,16 +298,16 @@ void PSO::updateParticleStates(particle* particle, int iteration)
 		particle->state.position.x = 0;
 		particle->state.velocity.y = PI * (0.5 - (rand() % 1000) / 1000.0);//
 	}
-	else if (particle->state.position.x >= WIDTH * RESOLUTION) {
-		particle->state.position.x = WIDTH * RESOLUTION;
+	else if (particle->state.position.x >= global_map_.width_ * global_map_.resolution_) {
+		particle->state.position.x = global_map_.width_ * global_map_.resolution_;
 		particle->state.velocity.y = PI * (0.5 + (rand() % 1000) / 1000.0);//
 	}
 	if (particle->state.position.y < 0) {
 		particle->state.position.y = 0;
 		particle->state.velocity.y = PI * ((rand() % 1000) / 1000.0);//
 	}
-	else if (particle->state.position.y > HEIGHT * RESOLUTION) {
-		particle->state.position.y = HEIGHT * RESOLUTION;
+	else if (particle->state.position.y > global_map_.height_ * global_map_.resolution_) {
+		particle->state.position.y = global_map_.height_ * global_map_.resolution_;
 		particle->state.velocity.y = PI * (1 + (rand() % 1000) / 1000.0);//
 	}
 	return;
@@ -295,7 +320,7 @@ void PSO::updateSwarmStates() {
 	
 	int iteration = 0;
 	int p_idx = 0;
-	for (iteration = 0; iteration < MAX_ITERATION; iteration++) {
+	for (iteration = 0; iteration < max_iteration_; iteration++) {
 		for (p_idx = 0; p_idx < particle_num_; p_idx++) {
 			particle *temp_part = swarm_ + p_idx;
 			updateParticleStates(temp_part, iteration);

@@ -9,22 +9,25 @@
 #include <set>
 #include <time.h>
 
-#include "../common/utility.h"
-#include "../common/dubins.h"
-#include "../common/parameter.h"
-#include "../aco_ws/aco.h"
-#include "../pso_ws/pso.h"
+#include "common/utility.h"
+#include "common/dubins.h"
+#include "common/parameter.h"
+#include "aco_ws/aco.h"
+#include "pso_ws/pso.h"
+
+extern "C" {
+	#include "D:/temp/PSO/mingw_build/iniparser/include/iniparser.h"
+}
 
 using namespace std;
 
-
-class MultipleSearchAndTrack
-{
+class MultipleSearchAndTrack{
 public:
 	MultipleSearchAndTrack(){};
 	~MultipleSearchAndTrack(){};
 	void run();
-	void init();
+	void init(const string& config_file_path);
+	void initParams(const string& config_file_path);
 	void destory();
 	void show(utility::UAV *uav, utility::TARGET *target); //return the current state of uav swarm and target group
 private:
@@ -54,12 +57,12 @@ private:
 	PSO pso_;
 	//PIO pio_;
 	//output
-	ofstream output_uav;
-	ofstream output_target;
-	ofstream output_traj_Point;
-	ofstream output_area_Point;
-	ofstream output_coverage_rate;
-	ofstream output_time;
+	ofstream output_uav_;
+	ofstream output_target_;
+	ofstream output_traj_Point_;
+	ofstream output_area_Point_;
+	ofstream output_coverage_rate_;
+	ofstream output_time_;
 
 	//others
 	utility::nion union_;//Disjoint Set
@@ -69,6 +72,31 @@ private:
 	int cunt = 0;
 	int opt_cunt = 0;
 	double  duration_=0;
+
+	int run_mode_;
+	int max_simulation_step_;
+
+	//uav params
+	int uav_num_total_;
+	int uav_num_slow_;
+	int uav_num_middle_;
+	int uav_num_fast_;
+	int uav_num_extra_;
+
+	//target params
+	int target_num_total_;
+	int target_num_slow_;
+	int target_num_middle_;
+	int target_num_fast_;
+
+	//map params
+	int resolution_;
+	int width_;
+	int height_;
+
+	//file path
+
+
 };
 
 #endif

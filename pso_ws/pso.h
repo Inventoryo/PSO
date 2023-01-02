@@ -5,9 +5,13 @@
 #include "../common/parameter.h"
 #include "../common/utility.h"
 #include <fstream>
-#include <opencv2/opencv.hpp>
+#include "opencv2/opencv.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
+
+extern "C" {
+	#include "D:/temp/PSO/mingw_build/iniparser/include/iniparser.h"
+}
 
 struct acc_grid
 {
@@ -31,20 +35,20 @@ class PSO
 public:
 	PSO(){};
 	~PSO(){};
-	void creatParticleSwarm(int particle_num);
-	void destoryParticleSwarm();
+	void create(const string& config_file_path);
+	void destory();
 	void getNextPoint(utility::MAP &global_map, utility::RADAR *radar,
 								  utility::OBSTACLE *obs, vector<utility::TARGET> &target, 
 								  vector<utility::UAV> &uav, int cur_T, int uav_idx);
 
 private:
+	void initParams(const string& config_file_path);
 	void spreadSwarm();
 	void updateSwarmStates();
 	void updateParticleStates(particle* particle, int iteration);
 	double calculateFitness(particle* particle);
 
 	particle *swarm_;
-	int particle_num_ ;
 	int border_ ;
 
 	double Gbest_fitness_;
@@ -66,7 +70,16 @@ private:
 	ofstream output_best_state;
 	vector<cv::Mat> layers;
 	
-	
+	double tao_;
+	double weight_;
+	double c1_;
+	double c2_;
+	double w2_;
+	double eta_;
+	double max_iteration_;
+	int particle_num_ ;
+	int used_layer_num_;
+
 };
 
 #endif
