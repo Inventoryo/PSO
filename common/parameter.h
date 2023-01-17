@@ -11,7 +11,7 @@ using namespace std;
 
 #define ADD_TIME 0
 
-#define COMMUNICATION_R 20000.0
+#define COMMUNICATION_R 2000000.0
 #define FORGET_TIME 5000.0
 
 static const int DIRECTION[8][2] ={ { -1,-1 },{ 0,-1 },{ 1,-1 },{ 1, 0 },{ 1, 1 },{ 0, 1 },{ -1, 1 },{ -1, 0 } };

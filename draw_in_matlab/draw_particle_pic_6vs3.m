@@ -5,10 +5,10 @@ cla;
 
 while(1)
 %     cla;
-    target         = load('../data/target.txt');
-    uav            = load('../data/uav.txt');
-    Gbest_position = load('../data/traj_Point.txt');
-    area_Point     = load('../data/area_Point.txt');
+    target         = load('./mingw_build/draw_data/L7/target.txt');
+    uav            = load('./mingw_build/draw_data/L7/uav.txt');
+    Gbest_position = load('./mingw_build/draw_data/L7/traj_Point.txt');
+    area_Point     = load('./mingw_build/draw_data/L7/area_Point.txt');
     plot (50000,50000);
     hold on;
     axis equal;

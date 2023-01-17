@@ -10,7 +10,7 @@
 #include "opencv2/highgui/highgui.hpp"
 
 extern "C" {
-	#include "D:/temp/PSO/mingw_build/iniparser/include/iniparser.h"
+	#include "../3rdParty/iniparser/src/iniparser.h"
 }
 
 struct acc_grid
@@ -68,7 +68,7 @@ private:
 	ofstream output_particle_state;
 	ofstream output_uav_state;
 	ofstream output_best_state;
-	vector<cv::Mat> layers;
+	vector<cv::Mat> layers_;
 	
 	double tao_;
 	double weight_;

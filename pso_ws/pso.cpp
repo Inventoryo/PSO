@@ -104,6 +104,11 @@ void PSO::initParams(const string& config_file_path){
 	particle_num_  = iniparser_getint(dict, "pso_param:particle_num", -1);
 	used_layer_num_  = iniparser_getint(dict, "pso_param:used_layer_num", -1);
 
+	global_map_.height_ = iniparser_getint(dict, "map_param:height", -1);
+	global_map_.width_ = iniparser_getint(dict, "map_param:width", -1);
+	global_map_.resolution_ = iniparser_getint(dict, "map_param:resolution", -1);
+
+
 	//file_path
 	const char *particle_state_path = iniparser_getstring(dict, "file_path:particle_state_path", NULL);
 	output_particle_state.open(particle_state_path, ios::binary);
@@ -126,7 +131,7 @@ void PSO::create(const string& config_file_path)
 	int width  = global_map_.width_  + 2 * border_;
 	for(uint8_t layer = 0 ;layer < MAX_LAYER_NUM;layer++){
 		cv::Mat mat(height, width, CV_16UC1, cv::Scalar(0));
-		layers.push_back(mat);
+		layers_.push_back(mat);
 		height = (height + 1) / 2;//ceil
 		width  = (width + 1) / 2;
 	}
@@ -155,30 +160,33 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 	
 	for(int i = 0; i < global_map_.height_; i++){
 		for(int j = 0; j < global_map_.width_; j++){
-			layers[0].at<uint16_t>(i + border_, j + border_) = cur_T > (global_map.map_[i * global_map_.width_ + j].search_time + FORGET_TIME) ? FORGET_TIME : (cur_T - global_map.map_[i * global_map_.width_ + j].search_time);
+			layers_[0].at<uint16_t>(i + border_, j + border_) = cur_T > (global_map.map_[i * global_map_.width_ + j].search_time + FORGET_TIME) ? FORGET_TIME : (cur_T - global_map.map_[i * global_map_.width_ + j].search_time);
 		}
 	}
 	
-	for (int layer_idx = 0; layer_idx < layers.size() - 1; layer_idx++) 
-		cv::pyrDown(layers[layer_idx], layers[layer_idx + 1], cv::Size(layers[layer_idx + 1].cols, layers[layer_idx + 1].rows));
+	for (int layer_idx = 0; layer_idx < layers_.size() - 1; layer_idx++) 
+		cv::pyrDown(layers_[layer_idx], layers_[layer_idx + 1], cv::Size(layers_[layer_idx + 1].cols, layers_[layer_idx + 1].rows));
 	
-		//cv::resize(layers[layer_idx], layers[layer_idx + 1], cv::Size(layers[layer_idx + 1].cols, layers[layer_idx + 1].rows), 0, 0, CV_INTER_LINEAR);
+		//cv::resize(layers_[layer_idx], layers_[layer_idx + 1], cv::Size(layers_[layer_idx + 1].cols, layers_[layer_idx + 1].rows), 0, 0, CV_INTER_LINEAR);
 	
 	if (uav_idx == DEBUG_IDX)
 		printf("debug points\n");
 
-	area_guider_ = findBestPoints(layers, cur_uav_->state, border_, global_map_.resolution_);
+	area_guider_ = findBestPoints(layers_, cur_uav_->state, border_, global_map_.resolution_);
 	base_angle_ = atan2(area_guider_.y - cur_uav_->state.position.y, area_guider_.x - cur_uav_->state.position.x);//-pi~pi
 	base_angle_ = base_angle_ >= 0 ? base_angle_ : 2 * PI + base_angle_;//0~2*pi
 
 #if DEBUG
-	cv::Mat temp;
-	temp.copySize(layers[0]);
-	cv::convertScaleAbs(layers[0], temp, 0.2);
-    cv::namedWindow("", cv::WINDOW_AUTOSIZE);
+	if(uav_idx == DEBUG_IDX){
+		cv::Mat temp;
+		temp.copySize(layers_[0]);
+		cv::convertScaleAbs(layers_[0], temp, 0.2);
+		cv::namedWindow("111", cv::WINDOW_AUTOSIZE);
 
-    cv::imshow("", temp);
-	cv::waitKey(10);
+		cv::imshow("111", temp);
+		cv::waitKey(10);
+	}
+
 #endif
 
 	spreadSwarm();
@@ -232,15 +240,15 @@ double PSO::calculateFitness(particle* particle){
 	double fitness_3 = 0;
 	//fitness1
 	//double t = global_map_->computeUncetanty(particle->state, cur_uav_->search_r, cur_T_);
-	double t = getUncertanty(layers, particle->state.position.x, particle->state.position.y, border_, global_map_.resolution_, used_layer_num_) / FORGET_TIME;
+	double t = getUncertanty(layers_, particle->state.position.x, particle->state.position.y, border_, global_map_.resolution_, used_layer_num_) / FORGET_TIME;
 	//double p  = (1 - exp(-tao * t)) ;
 	double d = utility::dubinsDistance(cur_uav_->state, particle->state, min_R_);
 	d = (d - cur_uav_->search_r) / global_map_.resolution_ ;
-	fitness_1 = t / (1.0 + d * d );
+	fitness_1 =  t / (1.0 + d * d );
 
 	double c;
-	/*
-	for (int target_id = 0; target_id < TARGET_NUM; target_id++) {//target influence
+	
+	for (int target_id = 0; target_id < target_->size(); target_id++) { //target influence
 		if (cur_T_ - cur_uav_->target_state[target_id].second < FORGET_TIME) {//target has been spotted
 			c = 1 + (*target_)[target_id].Vel_limite[1]/(cur_uav_->Vel_limite[1] + 1);
 			d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
@@ -249,16 +257,16 @@ double PSO::calculateFitness(particle* particle){
 			fitness_2 += 1 * c / (10 + d * d );
 		}
 	}
-	*/
+	
 
-	// int cur_uav_num = uav_->size();
-	// for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {//uav avoidance
-	// 	c = cur_uav_->Vel_limite[1] /((*uav_)[uav_id].Vel_limite[1] + 1);
-	// 	d = utility::dist((*uav_)[uav_id].state.position, particle->state.position);
-	// 	d = d / ((*uav_)[uav_id].search_r + cur_uav_->search_r);
-	// 	if( d < 1.1 && uav_id != cur_uav_->id)
-	// 		fitness_2 -= 1 * c / (1.0 + d * d );
-	// }
+	 int cur_uav_num = uav_->size();
+  for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {  //uav avoidance
+	    c = cur_uav_->Vel_limite[1] /((*uav_)[uav_id].Vel_limite[1] + 1);
+	 	d = utility::dist((*uav_)[uav_id].state.position, particle->state.position);
+		d = d / ((*uav_)[uav_id].search_r + cur_uav_->search_r);
+	 	if( d < 1.1 && uav_id != cur_uav_->id)
+	 		fitness_2 -= 1 * c / (1.0 + d * d );
+	}
 
 	//fitness3
 	double angle2 = atan2(particle->state.position.y - cur_uav_->state.position.y , particle->state.position.x - cur_uav_->state.position.x);//-pi~pi

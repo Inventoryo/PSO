@@ -16,7 +16,7 @@
 #include "pso_ws/pso.h"
 
 extern "C" {
-	#include "D:/temp/PSO/mingw_build/iniparser/include/iniparser.h"
+	#include "../3rdParty/iniparser/src/iniparser.h"
 }
 
 using namespace std;
@@ -63,6 +63,7 @@ private:
 	ofstream output_area_Point_;
 	ofstream output_coverage_rate_;
 	ofstream output_time_;
+	ofstream output_target_num_;
 
 	//others
 	utility::nion union_;//Disjoint Set
@@ -75,19 +76,6 @@ private:
 
 	int run_mode_;
 	int max_simulation_step_;
-
-	//uav params
-	int uav_num_total_;
-	int uav_num_slow_;
-	int uav_num_middle_;
-	int uav_num_fast_;
-	int uav_num_extra_;
-
-	//target params
-	int target_num_total_;
-	int target_num_slow_;
-	int target_num_middle_;
-	int target_num_fast_;
 
 	//map params
 	int resolution_;

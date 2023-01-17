@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.21.0)
-project(mst)
+project(mst VERSION 1.0)
 
-Option(CMAKE_BUILD_TYPE "release")
+Option(CMAKE_BUILD_TYPE "debug")
 set(CMAKE_CXX_STANDARD 17)
 
-# add_subdirectory(3rdParty)
+message(${CMAKE_C_COMPILER})
+message(${CMAKE_CXX_COMPILER})
 
-set(OpenCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mingw_build/install/)
+set(OpenCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/opencv/mingw_build/install/x64/mingw/staticlib)
 
 find_package(OpenCV REQUIRED)
 
@@ -14,8 +15,8 @@ if(OpenCV_FOUND)
     message(STATUS "The Opecv lib is found!") 
 endif()
 
-set(INIPARSER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mingw_build/iniparser/inculde)
-set(INIPARSER_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mingw_build/iniparser/lib)
+set(INIPARSER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/iniparser/src/)
+set(INIPARSER_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/iniparser/mingw_build/)
 
 message(${OpenCV_INCLUDE_DIRS})
 message(${INIPARSER_INCLUDE_DIR})
