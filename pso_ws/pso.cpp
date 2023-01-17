@@ -247,25 +247,29 @@ double PSO::calculateFitness(particle* particle){
 	fitness_1 =  t / (1.0 + d * d );
 
 	double c;
-	
+
 	for (int target_id = 0; target_id < target_->size(); target_id++) { //target influence
 		if (cur_T_ - cur_uav_->target_state[target_id].second < FORGET_TIME) {//target has been spotted
-			c = 1 + (*target_)[target_id].Vel_limite[1]/(cur_uav_->Vel_limite[1] + 1);
+			c = 1.0 + 1.0 /( cur_uav_->Vel_limite[1] * cur_uav_->Vel_limite[1] );
 			d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
-			d /= 5000;
-			if(d < 1.1)
-			fitness_2 += 1 * c / (10 + d * d );
+			d /= 2 * cur_uav_->search_r;
+
+			if(d < 1.0) fitness_2 += 1.0 * c / ( 10.0 + d * d *d );
+			else if ( d < 10.0 ) fitness_2 += 1.0 * c / ( 10.0 + d * d );
+			else fitness_2 += 1.0 * c / ( 10.0 + d );
 		}
 	}
-	
 
-	 int cur_uav_num = uav_->size();
-  for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {  //uav avoidance
-	    c = cur_uav_->Vel_limite[1] /((*uav_)[uav_id].Vel_limite[1] + 1);
+	int cur_uav_num = uav_->size();
+  	for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {  //uav avoidance
+		if(uav_id == cur_uav_->id) continue;
+	    c = 1.0 + 1.1 / ( cur_uav_->Vel_limite[1] * (*uav_)[uav_id].Vel_limite[1] );
 	 	d = utility::dist((*uav_)[uav_id].state.position, particle->state.position);
-		d = d / ((*uav_)[uav_id].search_r + cur_uav_->search_r);
-	 	if( d < 1.1 && uav_id != cur_uav_->id)
-	 		fitness_2 -= 1 * c / (1.0 + d * d );
+		d /= ((*uav_)[uav_id].search_r + cur_uav_->search_r);
+
+		if(d < 1.0) fitness_2 -= 1.0 * c / ( 10.0 + d * d *d );
+		else if ( d < 10.0 ) fitness_2 -= 1.0 * c / ( 10.0 + d * d );
+		else fitness_2 -= 1.0 * c / ( 10.0 + d );
 	}
 
 	//fitness3
