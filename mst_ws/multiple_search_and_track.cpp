@@ -3,10 +3,12 @@
 
 #define REPLANNING_NUM 10
 
+#define DESTORY_MODE 0
+
 void StringTArray(const string& src, const char split, vector<double>& dst){
 	if(src.empty())
 		return;
-	
+
 	dst.clear();
 	istringstream iss(src);
 	string token;
@@ -24,7 +26,7 @@ void initTargetFromString(const string& status, const double* limite, vector<uti
 	}
 
 	vector<double> status_v;
-	StringTArray(status, ',', status_v);	
+	StringTArray(status, ',', status_v);
 
 	for(int i = 0; i < status_v.size(); i += 4){
 		utility::TARGET temp_target;
@@ -51,7 +53,7 @@ void initUAVFromString(const string& status, const double* limite, vector<utilit
 	}
 
 	vector<double> status_v;
-	StringTArray(status, ',', status_v);	
+	StringTArray(status, ',', status_v);
 
 	for(int i = 0; i < status_v.size(); i += 4){
 		utility::UAV uav_temp;
@@ -70,7 +72,6 @@ void initUAVFromString(const string& status, const double* limite, vector<utilit
 		uav_temp.Acc_limite_y[1] = limite[5];
 		uav_temp.h               = limite[6];
 		uav_temp.search_r        = limite[7];
-		
 
 		uav_temp.id = uavs.size();
 		uav_temp.coverd_area_cnt  =  1;
@@ -300,7 +301,7 @@ double MultipleSearchAndTrack::computeEnage(utility::State  & start, utility::po
 };
 
 double MultipleSearchAndTrack::computeAttEnage(utility::State& start, utility::State& end, double zero_dist) {
-	
+
 	double d = utility::dubinsDistance(start, end, 1);
 	if (d > zero_dist)
 		d =  0;
@@ -464,7 +465,7 @@ void MultipleSearchAndTrack::updateUAVStates() {
 		}
 
 		updateArtificalPotentialFieldStateImpl( &(*cur_uav), uav_[i].traj_Point, uav_[i].state);
-		
+
 		output_uav_ << uav_[i].state.position.x << " " << uav_[i].state.position.y << " " << uav_[i].search_r << " ";
 		output_traj_Point_ << uav_[i].traj_Point.position.x << " " << uav_[i].traj_Point.position.y << " ";
 		//output_area_Point_ << uav_[i].area_guider.x << " " << uav_[i].area_guider.y << " ";
@@ -474,17 +475,20 @@ void MultipleSearchAndTrack::updateUAVStates() {
 			if (dist(target_[j].state.position, uav_[i].state.position)<uav_[i].search_r) {
 				uav_[i].target_state[j].first = target_[j].state;
 				uav_[i].target_state[j].second = cunt;
+#if DESTORY_MODE
 				(*tracked_)[j] = true;
 				cout << "target" << j + 1 << " has been destoryed by uav" << i + 1 << endl;
-				// if(dist(target_[j].state.position, uav_[i].state.position) < 5 * resolution_){
-				// 	(*tracked_)[j] = true;
-				// 	cout << "target " << j + 1 << " is successfully tracked by uav " << i + 1 << endl;
-				// 	for (int i = 0; i < cur_uav_num; i++)
-				// 		if(uav_[i].id!=i)
-				// 			uav_[i].Tj[j] = 0;
-				// 		else
-				// 			uav_[i].Tj[j] = 1;
-				// }
+#else
+				if(dist(target_[j].state.position, uav_[i].state.position) < 5 * resolution_){
+					(*tracked_)[j] = true;
+					cout << "target " << j + 1 << " is successfully tracked by uav " << i + 1 << endl;
+					for (int i = 0; i < cur_uav_num; i++)
+						if(uav_[i].id!=i)
+							uav_[i].Tj[j] = 0;
+						else
+							uav_[i].Tj[j] = 1;
+				}
+#endif
 			}
 		}
 	}
@@ -639,8 +643,10 @@ void MultipleSearchAndTrack::run() {
 
 		updateUAVStates();
 
-		// updateMission();
-
+#if DESTORY_MODE
+#else
+		updateMission();
+#endif
 		int destoryed_num = 0;
 		for (int i = 0; i < target_.size(); i++) {//
 			if ((*tracked_)[i])

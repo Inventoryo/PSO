@@ -19,7 +19,7 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::St
 	int y_idx = uav_state.position.y / resolution;
 	y_idx = min(max(0, y_idx), layers[0].rows - 1) + border;
 	y_idx >>= layer_idx ;
-	
+
 	int uav_dir = 4 * (uav_state.velocity.y + 3 * PI / 4) / PI;
 	uav_dir = uav_dir % 8;
 
@@ -135,6 +135,7 @@ void PSO::create(const string& config_file_path)
 		height = (height + 1) / 2;//ceil
 		width  = (width + 1) / 2;
 	}
+	cv::namedWindow("111", cv::WINDOW_AUTOSIZE);
 	return;
 };
 
@@ -157,18 +158,18 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 	target_ = &target;
 	cur_uav_ = &(uav[uav_idx]);
 	min_R_ = pow(cur_uav_->state.velocity.x, 2) / cur_uav_->Acc_limite_y[1];
-	
+
 	for(int i = 0; i < global_map_.height_; i++){
 		for(int j = 0; j < global_map_.width_; j++){
 			layers_[0].at<uint16_t>(i + border_, j + border_) = cur_T > (global_map.map_[i * global_map_.width_ + j].search_time + FORGET_TIME) ? FORGET_TIME : (cur_T - global_map.map_[i * global_map_.width_ + j].search_time);
 		}
 	}
-	
+
 	for (int layer_idx = 0; layer_idx < layers_.size() - 1; layer_idx++) 
 		cv::pyrDown(layers_[layer_idx], layers_[layer_idx + 1], cv::Size(layers_[layer_idx + 1].cols, layers_[layer_idx + 1].rows));
-	
+
 		//cv::resize(layers_[layer_idx], layers_[layer_idx + 1], cv::Size(layers_[layer_idx + 1].cols, layers_[layer_idx + 1].rows), 0, 0, CV_INTER_LINEAR);
-	
+
 	if (uav_idx == DEBUG_IDX)
 		printf("debug points\n");
 
@@ -181,7 +182,12 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 		cv::Mat temp;
 		temp.copySize(layers_[0]);
 		cv::convertScaleAbs(layers_[0], temp, 0.2);
-		cv::namedWindow("111", cv::WINDOW_AUTOSIZE);
+
+		for(int i = 0; i < target_->size(); i++){
+			int x_idx = target_->at(i).state.position.x / global_map_.resolution_;
+			int y_idx = target_->at(i).state.position.y / global_map_.resolution_;
+			cv::circle(temp, cv::Point(x_idx, y_idx), 10, (0, 0, 255));
+		}
 
 		cv::imshow("111", temp);
 		cv::waitKey(10);
