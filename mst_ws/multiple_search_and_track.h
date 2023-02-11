@@ -29,7 +29,7 @@ public:
 	void init(const string& config_file_path);
 	void initParams(const string& config_file_path);
 	void destory();
-	void show(utility::UAV *uav, utility::TARGET *target); //return the current state of uav swarm and target group
+	void show(); //return the current state of uav swarm and target group
 private:
 
 	void updateUAVStatesInDubinsState(utility::UAV * uav);

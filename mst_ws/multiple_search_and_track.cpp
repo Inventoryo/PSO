@@ -1,6 +1,6 @@
 
 #include "multiple_search_and_track.h"
-
+#include <thread>
 #define REPLANNING_NUM 10
 
 #define DESTORY_MODE 0
@@ -72,6 +72,9 @@ void initUAVFromString(const string& status, const double* limite, vector<utilit
 		uav_temp.Acc_limite_y[1] = limite[5];
 		uav_temp.h               = limite[6];
 		uav_temp.search_r        = limite[7];
+		uav_temp.k_att = limite[8];
+		uav_temp.k_rep = limite[9];
+		uav_temp.k_d   = limite[10];
 
 		uav_temp.id = uavs.size();
 		uav_temp.coverd_area_cnt  =  1;
@@ -97,15 +100,15 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 	//uav
 	string uav_status_slow = iniparser_getstring(dict, "uav_param:uav_status_slow", NULL);
 	//vel_limit, Acc_limite_x, Acc_limite_y, h, search_r
-	double uav_limit_slow[8] = {0., 0., -0, 0, -G * tan(30.0 * PI / 180.0), G * tan(30.0 * PI / 180.0), 400, 0};
+	double uav_limit_slow[11] = {0., 30., -0.4, 0.4, -G * tan(30.0 * PI / 180.0), G * tan(30.0 * PI / 180.0), 400, 2000, 5.0, 5.1, 5.0};
 	initUAVFromString(uav_status_slow, uav_limit_slow, uav_);
 
 	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", NULL);
-	double uav_limit_middle[8] = {0., 0., -0, 0, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 5000};
+	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 3000, 4.0, 4.1, 4.0};
 	initUAVFromString(uav_status_middle, uav_limit_middle, uav_);
 
 	string uav_status_fast = iniparser_getstring(dict, "uav_param:uav_status_fast", NULL);
-	double uav_limit_fast[8] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 400, 4000};
+	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 400, 4000, 2.0, 2.1, 2.0};
 	initUAVFromString(uav_status_fast, uav_limit_fast, uav_);
 
 	//target
@@ -433,8 +436,8 @@ void MultipleSearchAndTrack::updateUAVStates() {
 		clock_t start, finish;
 		double  duration;
 		if (cur_uav->track_target_num == -1 && cunt % REPLANNING_NUM == 0) {//
+			printf("updateing UAVs(%d) state\n", i);
 			start = clock();
-
 			switch (run_mode_){
 			case 0:{
 				pso_.getNextPoint(global_map_[i], radar_, obs_, target_, uav_, cunt, i);
@@ -482,11 +485,11 @@ void MultipleSearchAndTrack::updateUAVStates() {
 				if(dist(target_[j].state.position, uav_[i].state.position) < 5 * resolution_){
 					(*tracked_)[j] = true;
 					cout << "target " << j + 1 << " is successfully tracked by uav " << i + 1 << endl;
-					for (int i = 0; i < cur_uav_num; i++)
-						if(uav_[i].id!=i)
-							uav_[i].Tj[j] = 0;
-						else
-							uav_[i].Tj[j] = 1;
+					// for (int i = 0; i < cur_uav_num; i++)
+					// 	if(uav_[i].id!=i)
+					// 		uav_[i].Tj[j] = 0;
+					// 	else
+					// 		uav_[i].Tj[j] = 1;
 				}
 #endif
 			}
@@ -550,6 +553,7 @@ void MultipleSearchAndTrack::informationShare() {
 				for (int l = 0; l < union_.barrel[k].size(); l++) {
 					uav_idx = union_.barrel[k][l];
 					global_map_[uav_idx](i,j).search_time = max_count;//set the search time
+					global_map_[uav_idx].search_time_.at<uint16_t>(i, j) = max_count;
 					if (cunt - max_count < FORGET_TIME)
 						uav_[union_.barrel[k][l]].coverd_area_cnt += (double)(FORGET_TIME + max_count - cunt) / FORGET_TIME;//count the coverd area
 				}
@@ -631,8 +635,18 @@ void MultipleSearchAndTrack::updateMission() {
 }
 
 void MultipleSearchAndTrack::run() {
+	char status = 'r';
 	while (cunt < max_simulation_step_)
 	{
+		int key = cv::waitKey(10);
+
+		if(key == 'r')
+			status = 'r';
+		else if(key == 'p')
+			status = 'p';
+		printf("status = %d, key = %d\n", status, key);
+
+		if(status == 'p') continue;
 
 		printf("\nprocessing step%d\n", cunt);
 
@@ -643,21 +657,26 @@ void MultipleSearchAndTrack::run() {
 
 		updateUAVStates();
 
-#if DESTORY_MODE
-#else
-		updateMission();
-#endif
 		int destoryed_num = 0;
 		for (int i = 0; i < target_.size(); i++) {//
 			if ((*tracked_)[i])
 				destoryed_num++;
 		}
+
+#if DESTORY_MODE
 		printf("destroyed_target_num = %d\n", destoryed_num);
+#else
+		// updateMission();
+#endif
+		show();
+
 		output_target_num_ << destoryed_num << endl;
 		if (destoryed_num >= target_.size())
 			break;
 
 		cunt++;
+		
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 	//std::cout << "target_state:" << endl << target_state << endl;
 	std::cout << "All target has been tracked!The total number of step is " << cunt << std::endl;
@@ -679,12 +698,43 @@ void MultipleSearchAndTrack::destory()
 	delete(path_);
 	return;
 };
-void MultipleSearchAndTrack::show(utility::UAV *uav, utility::TARGET *target) {
-	for (int i = 0; i < uav_.size(); i++) {
-		uav[i] = uav_[i];
+
+void MultipleSearchAndTrack::show() {
+
+	utility::MAP& global_map = this->global_map_[0];
+	cv::Mat layers_(global_map.height_, global_map.width_, CV_16UC1);
+
+	for(int i = 0; i < global_map.height_; i++){
+		for(int j = 0; j < global_map.width_; j++){
+			layers_.at<uint16_t>(i, j) = cunt > (global_map.map_[i * global_map.width_ + j].search_time + FORGET_TIME) ? FORGET_TIME : (cunt - global_map.map_[i * global_map.width_ + j].search_time);
+		}
 	}
-	for (int j = 0; j < target_.size(); j++) {
-		target[j] = target_[j];
+
+	cv::Mat temp;
+	temp.copySize(layers_);
+	cv::convertScaleAbs(layers_, temp, 0.2);
+
+	for(int i = 0; i < target_.size(); i++){
+		int x_idx = target_.at(i).state.position.x / global_map_[0].resolution_;
+		int y_idx = target_.at(i).state.position.y / global_map_[0].resolution_;
+		cv::circle(temp, cv::Point(x_idx, y_idx), 2, (100, 100, 100), 5);
 	}
+
+	for(int i = 0; i < uav_.size(); i++){
+		int x_idx = uav_.at(i).traj_Point.position.x / global_map_[0].resolution_;
+		int y_idx = uav_.at(i).traj_Point.position.y / global_map_[0].resolution_;
+		cv::circle(temp, cv::Point(x_idx, y_idx), 3, (150, 150, 150), 5);
+	}
+
+	for(int i = 0; i < uav_.size(); i++){
+		int x_idx = uav_.at(i).area_guider.x / global_map_[0].resolution_;
+		int y_idx = uav_.at(i).area_guider.y / global_map_[0].resolution_;
+		cv::circle(temp, cv::Point(x_idx, y_idx), 5, (200, 200, 200), 5);
+	}
+
+	cv::namedWindow("111", cv::WINDOW_AUTOSIZE);
+	cv::imshow("111", temp);
+	cv::waitKey(10);
+
 	return;
 }

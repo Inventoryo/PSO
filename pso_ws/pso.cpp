@@ -2,8 +2,10 @@
 #include "pso.h"
 
 using namespace std;
-#define DEBUG 1
+#define DEBUG 0
 #define DEBUG_IDX 0
+
+static bool SHOW = 1;
 
 int Fdrections[9][2] = { { -1, -1 }, { 0, -1 }, { 1, -1 },
 						 { -1,  0 }, { 0,  0 }, { 1,  0 },
@@ -32,7 +34,7 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::St
 		temp_x = min(max(0, temp_x), (int)layers[layer_idx].cols - 1);
 		temp_y = y_idx + DIRECTION[dir_idx][1];
 		temp_y = min(max(0, temp_y), (int)layers[layer_idx].rows - 1);
-		int dir_gain = (8 - abs(uav_dir - dir_idx));
+		int dir_gain = 1;(8 - abs(uav_dir - dir_idx));
 		if (max_val <= dir_gain * layers[layer_idx].at<uint16_t>(temp_y, temp_x)) {
 			max_val = dir_gain * layers[layer_idx].at<uint16_t>(temp_y, temp_x);
 			best_x = temp_x;
@@ -74,14 +76,14 @@ double getUncertanty(const vector<cv::Mat> &layers, const double x, const double
 	y_idx = y_idx < 0 ? 0 : y_idx >= layers[0].rows ? layers[0].rows - 1 : y_idx;
 	y_idx += border;
 
-	int weight = 1;// << used_layer_num;
+	int weight = 1 << used_layer_num;
 	double sum_w = 0;
 	for(int i = 0; i < used_layer_num; i++){
 		sum_w += weight;
 		res += weight * layers[i].at<uint16_t>(y_idx, x_idx);
 		x_idx >>= 1;
 		y_idx >>= 1;
-		weight <<= 1;
+		weight >>= 1;
 	}
 	return res / sum_w;
 }
@@ -135,7 +137,7 @@ void PSO::create(const string& config_file_path)
 		height = (height + 1) / 2;//ceil
 		width  = (width + 1) / 2;
 	}
-	cv::namedWindow("111", cv::WINDOW_AUTOSIZE);
+
 	return;
 };
 
@@ -184,11 +186,11 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 		cv::convertScaleAbs(layers_[0], temp, 0.2);
 
 		for(int i = 0; i < target_->size(); i++){
-			int x_idx = target_->at(i).state.position.x / global_map_.resolution_;
-			int y_idx = target_->at(i).state.position.y / global_map_.resolution_;
-			cv::circle(temp, cv::Point(x_idx, y_idx), 10, (0, 0, 255));
+			int x_idx = target_->at(i).state.position.x / global_map_.resolution_ + border_;
+			int y_idx = target_->at(i).state.position.y / global_map_.resolution_ + border_;
+			cv::circle(temp, cv::Point(x_idx, y_idx), 5, (125, 125, 125), 5);
 		}
-
+		cv::namedWindow("111", cv::WINDOW_AUTOSIZE);
 		cv::imshow("111", temp);
 		cv::waitKey(10);
 	}
@@ -249,34 +251,28 @@ double PSO::calculateFitness(particle* particle){
 	double t = getUncertanty(layers_, particle->state.position.x, particle->state.position.y, border_, global_map_.resolution_, used_layer_num_) / FORGET_TIME;
 	//double p  = (1 - exp(-tao * t)) ;
 	double d = utility::dubinsDistance(cur_uav_->state, particle->state, min_R_);
-	d = (d - cur_uav_->search_r) / global_map_.resolution_ ;
+	d = (d - cur_uav_->search_r) / cur_uav_->search_r ;
 	fitness_1 =  t / (1.0 + d * d );
-
-	double c;
 
 	for (int target_id = 0; target_id < target_->size(); target_id++) { //target influence
 		if (cur_T_ - cur_uav_->target_state[target_id].second < FORGET_TIME) {//target has been spotted
-			c = 1.0 + 1.0 /( cur_uav_->Vel_limite[1] * cur_uav_->Vel_limite[1] );
 			d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
-			d /= 2 * cur_uav_->search_r;
+			d /= cur_uav_->search_r;
 
-			if(d < 1.0) fitness_2 += 1.0 * c / ( 10.0 + d * d *d );
-			else if ( d < 10.0 ) fitness_2 += 1.0 * c / ( 10.0 + d * d );
-			else fitness_2 += 1.0 * c / ( 10.0 + d );
+			if(d < cur_uav_->k_d) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + d);
 		}
 	}
 
 	int cur_uav_num = uav_->size();
   	for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {  //uav avoidance
 		if(uav_id == cur_uav_->id) continue;
-	    c = 1.0 + 1.1 / ( cur_uav_->Vel_limite[1] * (*uav_)[uav_id].Vel_limite[1] );
-	 	d = utility::dist((*uav_)[uav_id].state.position, particle->state.position);
-		d /= ((*uav_)[uav_id].search_r + cur_uav_->search_r);
+	 	d = utility::dist((*uav_)[uav_id].traj_Point.position, particle->state.position);
+		d /= cur_uav_->search_r;
 
-		if(d < 1.0) fitness_2 -= 1.0 * c / ( 10.0 + d * d *d );
-		else if ( d < 10.0 ) fitness_2 -= 1.0 * c / ( 10.0 + d * d );
-		else fitness_2 -= 1.0 * c / ( 10.0 + d );
+		if(d < cur_uav_->k_d) fitness_2 -= 1.0 * (*uav_)[uav_id].k_rep / ( 0.1 + d );;
+
 	}
+
 
 	//fitness3
 	double angle2 = atan2(particle->state.position.y - cur_uav_->state.position.y , particle->state.position.x - cur_uav_->state.position.x);//-pi~pi
@@ -285,8 +281,13 @@ double PSO::calculateFitness(particle* particle){
 	angle2 = angle2 <= PI ? angle2 : 2 * PI - angle2;//0~pi
 	fitness_3 = 1.0/(1.0 + exp(angle2));
 
-	fitness = eta_ * fitness_1 + (1 - eta_) * fitness_3 + w2_ * fitness_2 ;
-
+	fitness = eta_ * fitness_1 + (1.0 - eta_) * fitness_3 + w2_ * fitness_2 ;
+#if DEBUG
+	if(SHOW){
+		SHOW = false;
+		printf("Gbest_fitness_ = %lf, fitness_1 = %lf, fitness_2 = %lf, fitness_3 = %lf\n", Gbest_fitness_, fitness_1, fitness_2, fitness_3);
+	}
+#endif
 	return fitness;
 };
 
@@ -332,7 +333,7 @@ void PSO::updateParticleStates(particle* particle, int iteration)
 };
 
 void PSO::updateSwarmStates() {
-	Gbest_fitness_ = 0;
+	Gbest_fitness_ = -10000.0;
 
 	double temp_fitness;
 	
@@ -356,10 +357,12 @@ void PSO::updateSwarmStates() {
 				Gbest_state_   = temp_part->state;
 			}
 
-			if (cur_uav_->id == DEBUG_IDX && (particle_num_ % 5) ==0 && (iteration % 10) == 0 && cur_T_ <= 500)
+			if (cur_uav_->id == DEBUG_IDX && (p_idx % 5) ==0 && (iteration % 10) == 0 && cur_T_ <= 5000){
+				SHOW = true;
 				output_particle_state << temp_part->state.position.x << " " << temp_part->state.position.y << " ";
+			}
 		}
-		if (cur_uav_->id == DEBUG_IDX && (iteration % 10) == 0 && cur_T_ <= 500) {
+		if (cur_uav_->id == DEBUG_IDX && (iteration % 10) == 0 && cur_T_ <= 5000) {
 			double d = utility::dubinsDistance(cur_uav_->state, Gbest_state_, min_R_);
 
 			output_particle_state << endl;
@@ -370,7 +373,7 @@ void PSO::updateSwarmStates() {
 		}
 	}
 	
-	printf("Gbest_fitness_ = %lf\n", Gbest_fitness_);
+	printf("iteration = %d, p_idx = %d, Gbest_fitness_ = %lf\n", iteration, p_idx, Gbest_fitness_);
 	cur_uav_->traj_Point = Gbest_state_;
 	cur_uav_->area_guider = area_guider_;
 	//uav_->updatePrevPoses();

@@ -14,6 +14,10 @@
 #include "../common/dubins.h"
 #include "../common/parameter.h"
 
+#include "opencv2/opencv.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+
 namespace utility 
 {
 
@@ -261,6 +265,10 @@ public:
 	int track_target_num;
 	std::vector<State> prev_poses;
 
+	double k_att;
+	double k_rep;
+	double k_d;
+
 	void updatePrevPoses() {
 		if (prev_poses.size() < 5) {
 			prev_poses.push_back(traj_Point);
@@ -288,6 +296,7 @@ public:
 	MAP(){};
 	~MAP(){};
 	void init(int width, int height, int resulution, int time_init){
+		search_time_ = cv::Mat(height, width, CV_16UC1, time_init);
 		width_  = width;
 		height_ = height;
 		resolution_ = resulution;
@@ -299,15 +308,16 @@ public:
 		}
 	}
 	void updateMap(utility::UAV * uav, int cunt){
-		int row_min = std::max((int)(uav->state.position.y - uav->search_r) / resolution_, 0);
-		int row_max = std::min((int)(uav->state.position.y + uav->search_r) / resolution_, height_ - 1);
-		int col_min = std::max((int)(uav->state.position.x - uav->search_r) / resolution_, 0);
-		int col_max = std::min((int)(uav->state.position.x + uav->search_r) / resolution_, width_ - 1);
-		for (int row_idx = row_min; row_idx <= row_max; row_idx++) {
-			for (int col_idx = col_min; col_idx <= col_max; col_idx++) {
+		unsigned int row_min = std::max((int)(uav->state.position.y - uav->search_r) / resolution_, 0);
+		unsigned int row_max = std::min((int)(uav->state.position.y + uav->search_r) / resolution_, height_ - 1);
+		unsigned int col_min = std::max((int)(uav->state.position.x - uav->search_r) / resolution_, 0);
+		unsigned int col_max = std::min((int)(uav->state.position.x + uav->search_r) / resolution_, width_ - 1);
+		for (unsigned int row_idx = row_min; row_idx <= row_max; row_idx++) {
+			for (unsigned int col_idx = col_min; col_idx <= col_max; col_idx++) {
 				utility::point2D grid_pose((col_idx + 0.5) * resolution_, (row_idx + 0.5) * resolution_);
 				if (dist(grid_pose, uav->state.position) <= uav->search_r + 0.5 * resolution_)
 					map_[row_idx * width_ + col_idx].search_time = cunt;
+					this->search_time_.at<unsigned short>(row_idx, col_idx) = cunt;
 			}
 		}
 	};
@@ -329,7 +339,7 @@ public:
 	int height_;
 	int width_;
 	int resolution_;
-
+	cv::Mat search_time_;
 };
 
 	
@@ -340,13 +350,13 @@ public:
 		~nion() {};
 		std::vector<int> parent;
 		std::vector<std::vector<int>> barrel;
-		int unionsearch(int root) //���Ҹ����?
+		int unionsearch(int root) //
 		{
 			int son, tmp;
 			son = root;
-			while (root != parent[root]) //Ѱ�Ҹ����?
+			while (root != parent[root]) //
 				root = parent[root];
-			while (son != root) //·��ѹ��
+			while (son != root) //
 			{
 				tmp = parent[son];
 				parent[son] = root;
@@ -355,12 +365,12 @@ public:
 			return root;
 		}
 
-		void join(int root1, int root2) //�ж��Ƿ���ͨ������ͨ�ͺϲ�
+		void join(int root1, int root2) //
 		{
 			int x, y;
 			x = unionsearch(root1);
 			y = unionsearch(root2);
-			if (x != y) //��������?���Ͱ��������ڵ���ͨ��֧�ϲ�
+			if (x != y) //
 				parent[y] = x;
 		}
 		void setup_barrel() {
