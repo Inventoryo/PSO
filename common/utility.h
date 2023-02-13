@@ -100,12 +100,21 @@ public:
 		temp.y = this->y*T;
 		return temp;
 	}
-		
+
+	point2D operator/(double T) {
+		point2D temp;
+		if(abs(T) < 0.000001)
+			T += 0.00001;
+		temp.x = this->x/T;
+		temp.y = this->y/T;
+		return temp;
+	}
+
 	double x;
 	double y;
 };
 
-inline double dist(point2D& a, point2D& b)
+inline double dist(const point2D& a, const point2D& b)
 {
 	return sqrt((a.x - b.x)*(a.x - b.x) + (a.y - b.y)*(a.y - b.y));
 }

@@ -37,8 +37,7 @@ public:
 	~PSO(){};
 	void create(const string& config_file_path);
 	void destory();
-	void getNextPoint(utility::MAP &global_map, utility::RADAR *radar,
-								  utility::OBSTACLE *obs, vector<utility::TARGET> &target, 
+	void getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, vector<utility::TARGET> &target, 
 								  vector<utility::UAV> &uav, int cur_T, int uav_idx);
 
 private:
@@ -57,13 +56,12 @@ private:
 	vector<utility::UAV> *uav_;
 	utility::UAV *cur_uav_;
 	utility::MAP global_map_;
-	utility::RADAR *radar_;
+	vector<utility::RADAR>* radar_;
 	vector<utility::TARGET> *target_;
-	utility::OBSTACLE *obs_;
 	double min_R_;
 	int cur_T_;
 	utility::point2D area_guider_;
-	double base_angle_;
+	utility::point2D base_angle_;
 
 	ofstream output_particle_state;
 	ofstream output_uav_state;
