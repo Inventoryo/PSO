@@ -51,8 +51,8 @@ private:
 
 	vector<utility::TARGET> target_;
 	vector<utility::UAV> uav_;
-	utility::RADAR *radar_;
-	utility::OBSTACLE *obs_;
+	vector<utility::RADAR> radar_;
+	// utility::OBSTACLE *obs_;
 	ACO aco_;
 	PSO pso_;
 	//PIO pio_;

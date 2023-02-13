@@ -9,61 +9,48 @@ static bool SHOW = 1;
 
 int Fdrections[9][2] = { { -1, -1 }, { 0, -1 }, { 1, -1 },
 						 { -1,  0 }, { 0,  0 }, { 1,  0 },
-						 { -1,  1 }, { 0,  1 }, { 1,  1 }, };
+						 { -1,  1 }, { 0,  1 }, { 1,  1 }};
 
 utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::State & uav_state, int border, int resolution) {
 
-	int layer_idx = MAX_LAYER_NUM - 2;
 	int x_idx = uav_state.position.x / resolution;
-	x_idx = min(max(0, x_idx), layers[0].cols - 1) + border;
-	x_idx >>= layer_idx ;
+	x_idx = min(max(1, x_idx), layers[0].cols - 1) + border;
 
 	int y_idx = uav_state.position.y / resolution;
-	y_idx = min(max(0, y_idx), layers[0].rows - 1) + border;
-	y_idx >>= layer_idx ;
+	y_idx = min(max(1, y_idx), layers[0].rows - 1) + border;
 
 	int uav_dir = 4 * (uav_state.velocity.y + 3 * PI / 4) / PI;
 	uav_dir = uav_dir % 8;
 
-	int max_val = 0;
+	int layer_idx = layers.size() -1;
+	int cur_idx_x = x_idx >> layer_idx; 
+	int cur_idx_y = y_idx >> layer_idx;
 	int best_x, best_y;
-	int temp_x, temp_y;
+	while (layer_idx >= layers.size() -3) {
+		int max_val = 0;
+		int temp_x, temp_y;
 
-	for (int dir_idx = 0; dir_idx < 8; dir_idx++) {
-		temp_x = x_idx + DIRECTION[dir_idx][0];
-		temp_x = min(max(0, temp_x), (int)layers[layer_idx].cols - 1);
-		temp_y = y_idx + DIRECTION[dir_idx][1];
-		temp_y = min(max(0, temp_y), (int)layers[layer_idx].rows - 1);
-		int dir_gain = 1;(8 - abs(uav_dir - dir_idx));
-		if (max_val <= dir_gain * layers[layer_idx].at<uint16_t>(temp_y, temp_x)) {
-			max_val = dir_gain * layers[layer_idx].at<uint16_t>(temp_y, temp_x);
-			best_x = temp_x;
-			best_y = temp_y;
-		}
-	}
-	x_idx = best_x ;//top layer best
-	y_idx = best_y ;
-
-	/*
-	while (layer_idx--) {
-		max_val = 0;
-		for (int j = 0; j < 4; j++) {
-			temp_x = x_idx + Fdrections[j][0];
+		for (int j = 0; j < 8; j++) {
+			temp_x = cur_idx_x + DIRECTION[j][0];
 			temp_x = min(max(0, temp_x), (int)layers[layer_idx].cols - 1);
-			temp_y = y_idx + Fdrections[j][1];
+			temp_y = cur_idx_y + DIRECTION[j][1];
 			temp_y = min(max(0, temp_y), (int)layers[layer_idx].rows - 1);
-			if (max_val <= layers[layer_idx].at<uint16_t>(temp_y, temp_x)) {
-				max_val = layers[layer_idx].at<uint16_t>(temp_y, temp_x);
+			utility::point2D temp_p = utility::point2D((temp_x + 0.5) * pow(2, layer_idx) * resolution, (temp_y + 0.5) * pow(2, layer_idx) * resolution);
+			double dd = utility::dist(temp_p, uav_state.position) / resolution;
+			if (max_val <= layers[layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)))) {
+				max_val = layers[layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)));
 				best_x = temp_x;
 				best_y = temp_y;
 			}
 		}
-		x_idx = best_x << 1 ;
-		y_idx = best_y << 1 ;
+		cur_idx_x = (best_x) * 2;
+		cur_idx_y = (best_y) * 2;
+		
+		layer_idx--;
 	}
-	*/
-	x_idx = (best_x + 0.5) * pow(2, layer_idx) - border;
-	y_idx = (best_y + 0.5) * pow(2, layer_idx) - border;
+
+	x_idx = (best_x + 0.5) * pow(2, layer_idx + 1) - border;
+	y_idx = (best_y + 0.5) * pow(2, layer_idx + 1) - border;
 	return utility::point2D(x_idx * resolution, y_idx * resolution);
 }
 
@@ -76,14 +63,14 @@ double getUncertanty(const vector<cv::Mat> &layers, const double x, const double
 	y_idx = y_idx < 0 ? 0 : y_idx >= layers[0].rows ? layers[0].rows - 1 : y_idx;
 	y_idx += border;
 
-	int weight = 1 << used_layer_num;
+	double weight = 1.0;
 	double sum_w = 0;
 	for(int i = 0; i < used_layer_num; i++){
 		sum_w += weight;
 		res += weight * layers[i].at<uint16_t>(y_idx, x_idx);
 		x_idx >>= 1;
 		y_idx >>= 1;
-		weight >>= 1;
+		weight *= 1.1;
 	}
 	return res / sum_w;
 }
@@ -150,11 +137,10 @@ void PSO::destory()
 	return;
 };
 
-void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility::OBSTACLE *obs, vector<utility::TARGET> &target, vector<utility::UAV> &uav, int cur_T, int uav_idx)
+void PSO::getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, vector<utility::TARGET> &target, vector<utility::UAV> &uav, int cur_T, int uav_idx)
 {
 	global_map_ = global_map;
-	radar_ = radar;
-	obs_ = obs;
+	radar_ = &radar;
 	uav_ = &uav;
 	cur_T_ = cur_T;
 	target_ = &target;
@@ -176,8 +162,9 @@ void PSO::getNextPoint(utility::MAP &global_map, utility::RADAR *radar, utility:
 		printf("debug points\n");
 
 	area_guider_ = findBestPoints(layers_, cur_uav_->state, border_, global_map_.resolution_);
-	base_angle_ = atan2(area_guider_.y - cur_uav_->state.position.y, area_guider_.x - cur_uav_->state.position.x);//-pi~pi
-	base_angle_ = base_angle_ >= 0 ? base_angle_ : 2 * PI + base_angle_;//0~2*pi
+	base_angle_ = area_guider_ - cur_uav_->state.position;
+	base_angle_ = base_angle_ / base_angle_.distance();
+	// base_angle_ = base_angle_ >= 0 ? base_angle_ : 2 * PI + base_angle_;//0~2*pi
 
 #if DEBUG
 	if(uav_idx == DEBUG_IDX){
@@ -215,10 +202,22 @@ void PSO::spreadSwarm() {
 		temp_particle->state.position.x = length * cos(theta) + cur_uav_->state.position.x;
 		temp_particle->state.position.y = length * sin(theta) + cur_uav_->state.position.y;
 		
-		if(!global_map_.isInBound(temp_particle->state.position) || radar_->isInRader(temp_particle->state.position) || obs_->isInObstacle(temp_particle->state.position))
+		bool bad_location = false;
+		if(!global_map_.isInBound(temp_particle->state.position))
+			bad_location = true;
+		else {
+			for(auto radar:(*radar_)){
+				if(radar.isInRader(temp_particle->state.position)){
+					bad_location = true;
+					break;
+				}
+			}
+		}
+
+		if(bad_location)
 			continue;
 
-		temp_particle->state.velocity.x = cur_uav_->Vel_limite[0];//+ (cur_uav_->Vel_limite[1] - cur_uav_->Vel_limite[0]) * ((rand() % 1000) / 1000.0);//���ٶ�
+		temp_particle->state.velocity.x = cur_uav_->Vel_limite[0];//+ (cur_uav_->Vel_limite[1] - cur_uav_->Vel_limite[0]) * ((rand() % 1000) / 1000.0);//
 		temp_particle->state.velocity.y   = 2 * PI*((rand() % 1000) / 1000.0);
 		temp_particle->state.accelerate.x = 0;
 		temp_particle->state.accelerate.y = 0;
@@ -236,10 +235,21 @@ void PSO::spreadSwarm() {
 
 double PSO::calculateFitness(particle* particle){
 
-	if (radar_->isInRader(particle->state.position))
+	bool bad_location = false;
+	if(!global_map_.isInBound(particle->state.position))
+		bad_location = true;
+	else {
+		for(auto radar:(*radar_)){
+			if(radar.isInRader(particle->state.position)){
+				bad_location = true;
+				break;
+			}
+		}
+	}
+
+	if (bad_location)
 		return -100000;
-	if(obs_->isInObstacle(particle->state.position))
-		return -100000;
+
 
 	//fitness = (1-w)*fitness_1 + w*fitness_2
 	double fitness = 0;
@@ -259,7 +269,8 @@ double PSO::calculateFitness(particle* particle){
 			d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
 			d /= cur_uav_->search_r;
 
-			if(d < cur_uav_->k_d) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + d);
+			if(d < 1) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + sqrt(d));
+			else if(d < cur_uav_->k_d) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + d);
 		}
 	}
 
@@ -269,25 +280,26 @@ double PSO::calculateFitness(particle* particle){
 	 	d = utility::dist((*uav_)[uav_id].traj_Point.position, particle->state.position);
 		d /= cur_uav_->search_r;
 
-		if(d < cur_uav_->k_d) fitness_2 -= 1.0 * (*uav_)[uav_id].k_rep / ( 0.1 + d );;
+		if(d < 1) fitness_2 -= 1.0 * (*uav_)[uav_id].k_rep / ( 0.1 + sqrt(d) );
+		else if(d < cur_uav_->k_d) fitness_2 -= 1.0 * (*uav_)[uav_id].k_rep / ( 0.1 + d * d);
 
 	}
 
 
 	//fitness3
-	double angle2 = atan2(particle->state.position.y - cur_uav_->state.position.y , particle->state.position.x - cur_uav_->state.position.x);//-pi~pi
-	angle2 = angle2 >= 0 ? angle2 : 2 * PI + angle2;//0~2pi
-	angle2 = abs(utility::Mod2pi(angle2 - base_angle_));
-	angle2 = angle2 <= PI ? angle2 : 2 * PI - angle2;//0~pi
-	fitness_3 = 1.0/(1.0 + exp(angle2));
+	utility::point2D particle_angle = particle->state.position - cur_uav_->state.position;
+	particle_angle = particle_angle / particle_angle.distance();
+	double angle = acos(particle_angle.x * base_angle_.x + particle_angle.y * base_angle_.y);
+
+	fitness_3 = 1.0/(1.0 + exp(abs(angle)));
 
 	fitness = eta_ * fitness_1 + (1.0 - eta_) * fitness_3 + w2_ * fitness_2 ;
-#if DEBUG
-	if(SHOW){
-		SHOW = false;
-		printf("Gbest_fitness_ = %lf, fitness_1 = %lf, fitness_2 = %lf, fitness_3 = %lf\n", Gbest_fitness_, fitness_1, fitness_2, fitness_3);
-	}
-#endif
+
+	// if(SHOW){
+	// 	SHOW = false;
+	// 	printf("Gbest_fitness_ = %lf, fitness_1 = %lf, fitness_2 = %lf, fitness_3 = %lf, angle = %lf\n", Gbest_fitness_, fitness_1, fitness_2, fitness_3, angle);
+	// }
+
 	return fitness;
 };
 
