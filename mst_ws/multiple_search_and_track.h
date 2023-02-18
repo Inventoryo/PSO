@@ -42,6 +42,7 @@ private:
 	void updateUAVStates();
 	void informationShare();
 	void updateMission();
+	void addUAV();
 
 	float computeUncetanty(utility::State& state, double search_r, int id);
 	double sigmod(double x){ return 1.0 / (1 + exp(-x)); };
@@ -51,6 +52,7 @@ private:
 
 	vector<utility::TARGET> target_;
 	vector<utility::UAV> uav_;
+	vector<utility::UAV> extre_uav_;;
 	vector<utility::RADAR> radar_;
 	// utility::OBSTACLE *obs_;
 	ACO aco_;
@@ -76,6 +78,8 @@ private:
 
 	int run_mode_;
 	int max_simulation_step_;
+
+	int extre_step_;
 
 	//map params
 	int resolution_;

@@ -243,8 +243,8 @@ public:
 	point2D center_point;
 	double R;
 
-	bool isInRader(utility::point2D& position) {
-		return utility::dist(position, center_point) <= R;
+	bool isInRader(utility::point2D& position, double dd) {
+		return utility::dist(position, center_point) <= R + dd;
 	}
 };
 
@@ -331,10 +331,10 @@ public:
 		}
 	};
 
-	bool isInBound(utility::point2D& position)
+	bool isInBound(utility::point2D& position, double dd)
 	{
-		return !(position.x <= 0 || position.x >= width_  * resolution_ ||
-			     position.y <= 0 || position.y >= height_ * resolution_);
+		return !(position.x <= dd || position.x + dd >= width_  * resolution_ ||
+			     position.y <= dd || position.y + dd >= height_ * resolution_);
 	}
 
 	void destory(){

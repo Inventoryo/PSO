@@ -203,11 +203,11 @@ void PSO::spreadSwarm() {
 		temp_particle->state.position.y = length * sin(theta) + cur_uav_->state.position.y;
 		
 		bool bad_location = false;
-		if(!global_map_.isInBound(temp_particle->state.position))
+		if(!global_map_.isInBound(temp_particle->state.position, 1000.0))
 			bad_location = true;
 		else {
 			for(auto radar:(*radar_)){
-				if(radar.isInRader(temp_particle->state.position)){
+				if(radar.isInRader(temp_particle->state.position, 200.0)){
 					bad_location = true;
 					break;
 				}
@@ -236,11 +236,11 @@ void PSO::spreadSwarm() {
 double PSO::calculateFitness(particle* particle){
 
 	bool bad_location = false;
-	if(!global_map_.isInBound(particle->state.position))
+	if(!global_map_.isInBound(particle->state.position, 1000.0))
 		bad_location = true;
 	else {
 		for(auto radar:(*radar_)){
-			if(radar.isInRader(particle->state.position)){
+			if(radar.isInRader(particle->state.position, 1000.0)){
 				bad_location = true;
 				break;
 			}
@@ -270,7 +270,7 @@ double PSO::calculateFitness(particle* particle){
 			d /= cur_uav_->search_r;
 
 			if(d < 1) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + sqrt(d));
-			else if(d < cur_uav_->k_d) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + d);
+			else if(d < cur_uav_->k_d) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + d * d);
 		}
 	}
 

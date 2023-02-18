@@ -57,7 +57,7 @@ void initTargetFromString(string& status, const double* limite, vector<utility::
 	return;
 }
 
-void initUAVFromString(string& status, const double* limite, vector<utility::UAV>& uavs){
+void initUAVFromString(string& status, const double* limite, vector<utility::UAV>& uavs, int start_id){
 	if(status.empty()){
 		return;
 	}
@@ -86,7 +86,7 @@ void initUAVFromString(string& status, const double* limite, vector<utility::UAV
 		uav_temp.k_rep = limite[9];
 		uav_temp.k_d   = limite[10];
 
-		uav_temp.id = uavs.size();
+		uav_temp.id = uavs.size() + start_id;
 		uav_temp.coverd_area_cnt  =  1;
 		uav_temp.track_target_num = -1;
 
@@ -129,28 +129,33 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 	string uav_status_slow = iniparser_getstring(dict, "uav_param:uav_status_slow", NULL);
 	//vel_limit, Acc_limite_x, Acc_limite_y, h, search_r
 	double uav_limit_slow[11] = {0., 30., -0.4, 0.4, -G * tan(30.0 * PI / 180.0), G * tan(30.0 * PI / 180.0), 400, 2000, 5.0, 5.1, 5.0};
-	initUAVFromString(uav_status_slow, uav_limit_slow, uav_);
+	initUAVFromString(uav_status_slow, uav_limit_slow, uav_, 0);
 
 	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", NULL);
 	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 3000, 5.0, 5.1, 5.0};
-	initUAVFromString(uav_status_middle, uav_limit_middle, uav_);
+	initUAVFromString(uav_status_middle, uav_limit_middle, uav_, 0);
 
 	string uav_status_fast = iniparser_getstring(dict, "uav_param:uav_status_fast", NULL);
 	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 400, 4000, 2.0, 2.1, 2.0};
-	initUAVFromString(uav_status_fast, uav_limit_fast, uav_);
+	initUAVFromString(uav_status_fast, uav_limit_fast, uav_, 0);
+
+	string uav_status_extre = iniparser_getstring(dict, "uav_param:uav_status_extre", NULL);
+	double uav_limit_extre[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 3000, 5.0, 5.1, 5.0};
+	initUAVFromString(uav_status_extre, uav_limit_extre, extre_uav_, uav_.size());
+	extre_step_ = iniparser_getint(dict, "uav_param:extre_step", -1);
 
 	//target
 	string target_status_slow = iniparser_getstring(dict, "target_param:target_status_slow", NULL);
 	//vel_limit, Acc_limite_x, Acc_limite_y,
-	double target_limit_slow[6] = {0., 0., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
+	double target_limit_slow[6] = {0.,20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_slow, target_limit_slow, target_);
 
 	string target_status_middle = iniparser_getstring(dict, "target_param:target_status_middle", NULL);
-	double target_limit_middle[6] = {0., 0., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
+	double target_limit_middle[6] = {0., 20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_middle, target_limit_middle, target_);
 
 	string target_status_fast = iniparser_getstring(dict, "target_param:target_status_fast", NULL);
-	double target_limit_fast[6] = {0., 0., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
+	double target_limit_fast[6] = {0., 20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_fast, target_limit_fast, target_);
 
 	//map
@@ -252,8 +257,47 @@ void MultipleSearchAndTrack::updateUAVStatesInDubinsState(utility::UAV* uav) {
 	return;
 }
 
+utility::point2D MultipleSearchAndTrack::computeRepulsion(utility::point2D& start, utility::point2D& obstacle) {
+	utility::point2D F_rep = start- obstacle;
+
+	if (F_rep.distance() > 10000)
+		F_rep = F_rep * 0;
+	else if (F_rep.distance() > 0.000001) 
+		F_rep = F_rep * (1 / pow(F_rep.distance(), 2));
+		
+	return F_rep;
+};
+
+double MultipleSearchAndTrack::computeEnage(utility::State  & start, utility::point2D& obstacle,double zero_dist) {
+	utility::point2D F_rep = obstacle -start.position;
+
+	double theta = utility::Mod2pi(F_rep.angle() - start.velocity.y);
+	double res = 0;
+	theta = 1 + cos(theta);
+	if (F_rep.distance() < resolution_)
+		res = theta;
+	else if (F_rep.distance() < zero_dist)
+		res = theta / (F_rep.distance() / resolution_);
+	return res;
+};
+
+double MultipleSearchAndTrack::computeAttEnage(utility::State& start, utility::State& end, double zero_dist) {
+
+	double d = utility::dubinsDistance(start, end, 1);
+	if (d > zero_dist)
+		d =  0;
+	else if (d > 0.0000001)
+		d = 1 / d;
+	return d;
+};
+
+utility::point2D MultipleSearchAndTrack::computeAttraction(utility::point2D& start, utility::point2D& goal) {
+	utility::point2D F_att = goal - start;
+	return F_att;
+};
+
 void MultipleSearchAndTrack::updateArtificalPotentialFieldStateImpl(utility::UAV *uav, utility::State &goal, utility::State &next) {
-	double k_att = 1, k_ref = 0;//100000000.0;
+	double k_att = 1, k_ref = 100000.0;
 
 	//compute Attraction
 	utility::point2D F_att = computeAttraction(uav->state.position, goal.position);
@@ -274,12 +318,15 @@ void MultipleSearchAndTrack::updateArtificalPotentialFieldStateImpl(utility::UAV
 	// 	obstacle_point.y = uav->state.position.y;
 	// utility::point2D F_rep = computeRepulsion(uav->state.position, obstacle_point);
 
-	utility::point2D F_rep;
+	utility::point2D F_rep(0, 0);
 	//compute Radar
 	for(auto radar:radar_){
-		utility::point2D Radar_point;
-		Radar_point = radar.center_point + (uav->state.position - radar.center_point)*(radar.R / (uav->state.position - radar.center_point).distance());
-		F_rep = F_rep + computeRepulsion(uav->state.position, Radar_point);
+		if(radar.R > (uav->state.position - radar.center_point).distance()){
+			utility::point2D Radar_point;
+			Radar_point = radar.center_point + (uav->state.position - radar.center_point)*(radar.R / (uav->state.position - radar.center_point).distance());
+			F_rep = F_rep + computeRepulsion(uav->state.position, Radar_point);
+		}
+
 	}
 
 
@@ -315,75 +362,24 @@ void MultipleSearchAndTrack::updateArtificalPotentialFieldStateImpl(utility::UAV
 	return;
 }
 
-utility::point2D MultipleSearchAndTrack::computeRepulsion(utility::point2D& start, utility::point2D& obstacle) {
-	utility::point2D F_rep = start- obstacle;
-
-	if (F_rep.distance() > 10000)
-		F_rep = F_rep * 0;
-	else if (F_rep.distance() > 0.0000001) 
-		F_rep = F_rep * (1 / pow(F_rep.distance(), 3));
-		
-	return F_rep;
-};
-
-double MultipleSearchAndTrack::computeEnage(utility::State  & start, utility::point2D& obstacle,double zero_dist) {
-	utility::point2D F_rep = obstacle -start.position;
-
-	double theta = utility::Mod2pi(F_rep.angle() - start.velocity.y);
-	double res = 0;
-	theta = 1 + cos(theta);
-	if (F_rep.distance() < resolution_)
-		res = theta;
-	else if (F_rep.distance() < zero_dist)
-		res = theta / (F_rep.distance() / resolution_);
-	return res;
-};
-
-double MultipleSearchAndTrack::computeAttEnage(utility::State& start, utility::State& end, double zero_dist) {
-
-	double d = utility::dubinsDistance(start, end, 1);
-	if (d > zero_dist)
-		d =  0;
-	else if (d > 0.0000001)
-		d = 1 / d;
-	return d;
-};
-
-utility::point2D MultipleSearchAndTrack::computeAttraction(utility::point2D& start, utility::point2D& goal) {
-	utility::point2D F_att = goal - start;
-	return F_att;
-};
-
 void MultipleSearchAndTrack::init(const string& config_file_path) {
 
 	initParams(config_file_path);
 
-	target_state_ = new vector<vector<double>>(uav_.size(), vector<double>(target_.size(), 0));
+	target_state_ = new vector<vector<double>>(uav_.size() + extre_uav_.size(), vector<double>(target_.size(), 0));
 	tracked_ = new vector<bool>(target_.size(), false);
 	path_ = new HybridAStar::DubinsPath();
-	global_map_.resize(uav_.size());
+	
 	//map
 	printf("initializing map\n");
+	global_map_.resize(uav_.size() + extre_uav_.size());
 
-	//printf("(*global_map_)[0][0].search_time = %d\n", (*global_map_)[0][0].search_time);
 	//setParam
 	aco_.setParam(10, 500, 2, 4, 100, 0.8);
 	pso_.create(config_file_path);
 
-	//obstacle
-	printf("initializing obstacles\n");
 	srand((int(time(0))));
 
-
-	// obs_ = new utility::OBSTACLE();
-
-	// utility::point2D a(1500000, 1500000), b(2000000, 1500000), c(2000000, 2000000), d(1500000, 2000000);
-	// obs_->point_lists.push_back(a);
-	// obs_->point_lists.push_back(b);
-	// obs_->point_lists.push_back(c);
-	// obs_->point_lists.push_back(d);
-
-	utility::UAV * uav_temp = new utility::UAV();
 	for ( int i = 0; i < uav_.size(); i++) {
 		utility::UAV& uav_temp = uav_[i];
 		for (int j = 0; j < target_.size(); j++) {
@@ -446,13 +442,21 @@ void MultipleSearchAndTrack::updateTargetStates() {
 
 		bool istracking = false;
 		for(int i = 0; i < uav_.size(); i++)
-			if (dist(uav_[i].state.position, temp_target->state.position) <= 10 * resolution_) {
+			if (dist(uav_[i].state.position, temp_target->state.position) <= 0.5 * uav_[i].search_r) {
 				istracking = true;//target been tracked
+				cout << "target " << target_tag + 1 << " is successfully tracked by uav " << i + 1 << endl;
 				break;
 			}
-		if (!istracking)
+		if (istracking){
+			(*tracked_)[target_tag] = true;
+			for(int i = 0; i < uav_.size(); i++)
+				uav_[i].Tj[target_tag] = -1;
+		}else{
+			(*tracked_)[target_tag] = false;
 			for(int i = 0; i < uav_.size(); i++)
 				uav_[i].Tj[target_tag] = 1;
+		}
+
 		output_target_ << temp_target->state.position.x << " " << temp_target->state.position.y << " ";
 	}
 	output_target_ << endl;
@@ -514,24 +518,16 @@ void MultipleSearchAndTrack::updateUAVStates() {
 #if DESTORY_MODE
 				(*tracked_)[j] = true;
 				cout << "target" << j + 1 << " has been destoryed by uav" << i + 1 << endl;
-#else
-				if(dist(target_[j].state.position, uav_[i].state.position) < 5 * resolution_){
-					(*tracked_)[j] = true;
-					cout << "target " << j + 1 << " is successfully tracked by uav " << i + 1 << endl;
-					// for (int i = 0; i < cur_uav_num; i++)
-					// 	if(uav_[i].id!=i)
-					// 		uav_[i].Tj[j] = 0;
-					// 	else
-					// 		uav_[i].Tj[j] = 1;
-				}
 #endif
 			}
 		}
 	}
 
-	for (; i < target_.size(); i++) {
-		output_uav_ << 0 << " " << 0 << " " << 1 << " ";
-		output_traj_Point_ << 0 << " " << 0 << " ";
+	if(cunt<300){
+		for(auto c:extre_uav_){
+			output_uav_ << c.state.position.x << " " << c.state.position.y << " " << c.search_r << " ";
+			output_traj_Point_ << c.traj_Point.position.x << " " << c.traj_Point.position.y << " ";
+		}
 	}
 
 	output_uav_ << endl;
@@ -667,6 +663,29 @@ void MultipleSearchAndTrack::updateMission() {
 	}
 }
 
+void MultipleSearchAndTrack::addUAV(){
+
+	for ( int i = 0; i < extre_uav_.size(); i++) {
+		utility::UAV& uav_temp = extre_uav_[i];
+		for (int j = 0; j < target_.size(); j++) {
+			utility::State temp_state;
+			temp_state.position.x = 0;
+			temp_state.position.y = 0;
+			uav_temp.target_state.push_back(make_pair(temp_state, -FORGET_TIME));
+			uav_temp.Tj[j] = 1;
+		}
+
+		global_map_[uav_temp.id].init(width_, height_, resolution_, -FORGET_TIME);
+		global_map_[uav_temp.id].updateMap(&uav_temp, cunt);
+		union_.parent.push_back(uav_temp.id);
+	}
+
+	for( auto c:extre_uav_)
+		uav_.push_back(c);
+	return;
+}
+
+
 void MultipleSearchAndTrack::run() {
 	char status = 'r';
 	while (cunt < max_simulation_step_)
@@ -679,6 +698,11 @@ void MultipleSearchAndTrack::run() {
 			status = 'p';
 
 		if(status == 'p') continue;
+
+		printf("\nprocessing step = %d\n", cunt);
+
+		if(cunt == extre_step_)
+			addUAV();
 
 		if (uav_.size() > 1)
 			informationShare();
