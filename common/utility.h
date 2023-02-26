@@ -317,12 +317,12 @@ public:
 		}
 	}
 	void updateMap(utility::UAV * uav, int cunt){
-		unsigned int row_min = std::max((int)(uav->state.position.y - uav->search_r) / resolution_, 0);
-		unsigned int row_max = std::min((int)(uav->state.position.y + uav->search_r) / resolution_, height_ - 1);
-		unsigned int col_min = std::max((int)(uav->state.position.x - uav->search_r) / resolution_, 0);
-		unsigned int col_max = std::min((int)(uav->state.position.x + uav->search_r) / resolution_, width_ - 1);
-		for (unsigned int row_idx = row_min; row_idx <= row_max; row_idx++) {
-			for (unsigned int col_idx = col_min; col_idx <= col_max; col_idx++) {
+		int row_min = std::max((int)(uav->state.position.y - uav->search_r) / resolution_, 0);
+		int row_max = std::min((int)(uav->state.position.y + uav->search_r) / resolution_, height_ - 1);
+		int col_min = std::max((int)(uav->state.position.x - uav->search_r) / resolution_, 0);
+		int col_max = std::min((int)(uav->state.position.x + uav->search_r) / resolution_, width_ - 1);
+		for (int row_idx = row_min; row_idx <= row_max; row_idx++) {
+			for (int col_idx = col_min; col_idx <= col_max; col_idx++) {
 				utility::point2D grid_pose((col_idx + 0.5) * resolution_, (row_idx + 0.5) * resolution_);
 				if (dist(grid_pose, uav->state.position) <= uav->search_r + 0.5 * resolution_)
 					map_[row_idx * width_ + col_idx].search_time = cunt;
