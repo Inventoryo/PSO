@@ -11,34 +11,73 @@ int Fdrections[9][2] = { { -1, -1 }, { 0, -1 }, { 1, -1 },
 						 { -1,  0 }, { 0,  0 }, { 1,  0 },
 						 { -1,  1 }, { 0,  1 }, { 1,  1 }};
 
-utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::State & uav_state, int border, int resolution) {
+utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::UAV> &uav, int uav_idx,  int border, int resolution) {
 
-	int x_idx = uav_state.position.x / resolution;
+	utility::UAV &cur_uav = uav[uav_idx];
+	int top_layer_idx = layers.size() - 2;
+	vector<vector<bool>> visited(layers[top_layer_idx].cols, vector<bool>(layers[top_layer_idx].rows, false));
+
+	for(auto c:uav){
+		if(c.id == uav_idx)
+			continue;
+		int x_idx = c.area_guider.x / resolution;
+		x_idx = min(max(1, x_idx), layers[0].cols - 1) + border;
+		x_idx >>= top_layer_idx;
+
+		int y_idx = c.area_guider.y / resolution;
+		y_idx = min(max(1, y_idx), layers[0].rows - 1) + border;
+		y_idx >>= top_layer_idx;
+		visited[y_idx][x_idx] = true;
+	}
+
+	int x_idx = cur_uav.state.position.x / resolution;
 	x_idx = min(max(1, x_idx), layers[0].cols - 1) + border;
 
-	int y_idx = uav_state.position.y / resolution;
+	int y_idx = cur_uav.state.position.y / resolution;
 	y_idx = min(max(1, y_idx), layers[0].rows - 1) + border;
+	int cur_idx_x = x_idx >> top_layer_idx; 
+	int cur_idx_y = y_idx >> top_layer_idx;
 
-	int uav_dir = 4 * (uav_state.velocity.y + 3 * PI / 4) / PI;
+	int uav_dir = (4.0 * (cur_uav.state.velocity.y + 3.0 * PI / 4.0) / PI + 0.5);
 	uav_dir = uav_dir % 8;
 
-	int layer_idx = layers.size() -1;
-	int cur_idx_x = x_idx >> layer_idx; 
-	int cur_idx_y = y_idx >> layer_idx;
+	double max_val = 0;
+	int temp_x, temp_y;
 	int best_x, best_y;
-	while (layer_idx >= layers.size() -3) {
+
+	//find best grid at top layer
+	for (int j = 0; j < 8; j++) {
+		temp_x = cur_idx_x + DIRECTION[j][0];
+		temp_y = cur_idx_y + DIRECTION[j][1];
+		if(temp_x < 0 ||temp_x >= (int)layers[top_layer_idx].cols || 
+		   temp_y < 0 ||temp_y >= (int)layers[top_layer_idx].rows)
+			continue;
+		double gain = sqrt(8 - abs(uav_dir - j) % 4);
+		double val = gain * layers[top_layer_idx].at<uint16_t>(temp_y, temp_x);
+		if(!visited[temp_y][temp_x] &&  val > max_val){
+			max_val = val;
+			best_x = temp_x;
+			best_y = temp_y;
+		}
+	}	
+/*
+	int cur_layer_idx = top_layer_idx;
+	int best_x, best_y;
+	while (cur_layer_idx >= layers.size() -3) {
 		int max_val = 0;
 		int temp_x, temp_y;
 
 		for (int j = 0; j < 8; j++) {
 			temp_x = cur_idx_x + DIRECTION[j][0];
-			temp_x = min(max(0, temp_x), (int)layers[layer_idx].cols - 1);
+			temp_x = min(max(0, temp_x), (int)layers[cur_layer_idx].cols - 1);
 			temp_y = cur_idx_y + DIRECTION[j][1];
-			temp_y = min(max(0, temp_y), (int)layers[layer_idx].rows - 1);
-			utility::point2D temp_p = utility::point2D((temp_x + 0.5) * pow(2, layer_idx) * resolution, (temp_y + 0.5) * pow(2, layer_idx) * resolution);
+			temp_y = min(max(0, temp_y), (int)layers[cur_layer_idx].rows - 1);
+			utility::point2D temp_p = utility::point2D((temp_x + 0.5) * pow(2, cur_layer_idx) * resolution, 
+													   (temp_y + 0.5) * pow(2, cur_layer_idx) * resolution);
+
 			double dd = utility::dist(temp_p, uav_state.position) / resolution;
-			if (max_val <= layers[layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)))) {
-				max_val = layers[layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)));
+			if (max_val <= layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)))) {
+				max_val = layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)));
 				best_x = temp_x;
 				best_y = temp_y;
 			}
@@ -46,11 +85,12 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, const utility::St
 		cur_idx_x = (best_x) * 2;
 		cur_idx_y = (best_y) * 2;
 		
-		layer_idx--;
+		cur_layer_idx--;
 	}
-
-	x_idx = (best_x + 0.5) * pow(2, layer_idx + 1) - border;
-	y_idx = (best_y + 0.5) * pow(2, layer_idx + 1) - border;
+*/
+	x_idx = (best_x + 0.5) * pow(2.0, top_layer_idx) - border;
+	y_idx = (best_y + 0.5) * pow(2.0, top_layer_idx) - border;
+	printf("best_x:%d, best_y:%d, x_idx:%d, y_idx:%d, uav_dir:%d\n", best_x, best_y, x_idx, y_idx, uav_dir);
 	return utility::point2D(x_idx * resolution, y_idx * resolution);
 }
 
@@ -114,7 +154,7 @@ void PSO::initParams(const string& config_file_path){
 void PSO::create(const string& config_file_path)
 {
 	initParams(config_file_path);
-	border_ = 64;
+	border_ = 0;
 	swarm_ = (particle*)malloc(particle_num_ * sizeof(particle));
 	int height = global_map_.height_ + 2 * border_;
 	int width  = global_map_.width_  + 2 * border_;
@@ -161,7 +201,7 @@ void PSO::getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, 
 	if (uav_idx == DEBUG_IDX)
 		printf("debug points\n");
 
-	area_guider_ = findBestPoints(layers_, cur_uav_->state, border_, global_map_.resolution_);
+	area_guider_ = findBestPoints(layers_, uav, uav_idx, border_, global_map_.resolution_);
 	base_angle_ = area_guider_ - cur_uav_->state.position;
 	base_angle_ = base_angle_ / base_angle_.distance();
 	// base_angle_ = base_angle_ >= 0 ? base_angle_ : 2 * PI + base_angle_;//0~2*pi
@@ -195,7 +235,8 @@ void PSO::spreadSwarm() {
 	particle* temp_particle = swarm_;
 	Gbest_fitness_ = 0;
 	int j = 0;
-	while (j < particle_num_) {
+	int max_ite = 1000;
+	while (j < particle_num_ && max_ite--) {
 		
 		double length = 1.1 * cur_uav_->search_r + (cur_uav_->state.velocity.x) * (rand() % 1000) / 1000.0;
 		double theta = 2 * PI * ((rand() % 1000) / 1000.0);
@@ -264,6 +305,14 @@ double PSO::calculateFitness(particle* particle){
 	d = (d - cur_uav_->search_r) / cur_uav_->search_r ;
 	fitness_1 =  t / (1.0 + d * d );
 
+	for (int uav_id = 0; uav_id < uav_->size(); uav_id++) {  //uav avoidance
+		if(uav_id == cur_uav_->id) continue;
+	 	d = utility::dist((*uav_)[uav_id].state.position, particle->state.position);
+		d /= cur_uav_->search_r + (*uav_)[uav_id].search_r;
+		if(d < 1) fitness_1 -= 1.0 / ( 0.001 + d * d );
+
+	}
+
 	for (int target_id = 0; target_id < target_->size(); target_id++) { //target influence
 		if (cur_T_ - cur_uav_->target_state[target_id].second < FORGET_TIME) {//target has been spotted
 			d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
@@ -275,7 +324,7 @@ double PSO::calculateFitness(particle* particle){
 	}
 
 	int cur_uav_num = uav_->size();
-  	for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {  //uav avoidance
+  	for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {  //task competition
 		if(uav_id == cur_uav_->id) continue;
 	 	d = utility::dist((*uav_)[uav_id].traj_Point.position, particle->state.position);
 		d /= cur_uav_->search_r;
@@ -284,6 +333,8 @@ double PSO::calculateFitness(particle* particle){
 		else if(d < cur_uav_->k_d) fitness_2 -= 1.0 * (*uav_)[uav_id].k_rep / ( 0.1 + d * d);
 
 	}
+
+
 
 
 	//fitness3
@@ -385,7 +436,7 @@ void PSO::updateSwarmStates() {
 		}
 	}
 	
-	printf("iteration = %d, p_idx = %d, Gbest_fitness_ = %lf\n", iteration, p_idx, Gbest_fitness_);
+	//printf("iteration = %d, p_idx = %d, Gbest_fitness_ = %lf\n", iteration, p_idx, Gbest_fitness_);
 	cur_uav_->traj_Point = Gbest_state_;
 	cur_uav_->area_guider = area_guider_;
 	//uav_->updatePrevPoses();

@@ -3,7 +3,7 @@
 #include <thread>
 #define REPLANNING_NUM 10
 
-#define DESTORY_MODE 0
+#define DESTORY_MODE 1
 
 void trim(string& src, char decimal){
 	int idx = 0;
@@ -126,35 +126,35 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 	max_simulation_step_   = iniparser_getint(dict, "common_param:max_simulation_step", -1);
 
 	//uav
-	string uav_status_slow = iniparser_getstring(dict, "uav_param:uav_status_slow", NULL);
+	string uav_status_slow = iniparser_getstring(dict, "uav_param:uav_status_slow", "");
 	//vel_limit, Acc_limite_x, Acc_limite_y, h, search_r
 	double uav_limit_slow[11] = {0., 30., -0.4, 0.4, -G * tan(30.0 * PI / 180.0), G * tan(30.0 * PI / 180.0), 400, 2000, 5.0, 5.1, 5.0};
 	initUAVFromString(uav_status_slow, uav_limit_slow, uav_, 0);
 
-	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", NULL);
-	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 3000, 5.0, 5.1, 5.0};
+	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", "");
+	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1000, 5.0, 5.1, 5.0};
 	initUAVFromString(uav_status_middle, uav_limit_middle, uav_, 0);
 
-	string uav_status_fast = iniparser_getstring(dict, "uav_param:uav_status_fast", NULL);
-	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 400, 4000, 2.0, 2.1, 2.0};
+	string uav_status_fast = iniparser_getstring(dict, "uav_param:uav_status_fast", "");
+	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 800, 2000, 2.0, 2.1, 2.0};
 	initUAVFromString(uav_status_fast, uav_limit_fast, uav_, 0);
 
-	string uav_status_extre = iniparser_getstring(dict, "uav_param:uav_status_extre", NULL);
-	double uav_limit_extre[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 3000, 5.0, 5.1, 5.0};
+	string uav_status_extre = iniparser_getstring(dict, "uav_param:uav_status_extre", "");
+	double uav_limit_extre[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1000, 5.0, 5.1, 5.0};
 	initUAVFromString(uav_status_extre, uav_limit_extre, extre_uav_, uav_.size());
 	extre_step_ = iniparser_getint(dict, "uav_param:extre_step", -1);
 
 	//target
-	string target_status_slow = iniparser_getstring(dict, "target_param:target_status_slow", NULL);
+	string target_status_slow = iniparser_getstring(dict, "target_param:target_status_slow", "");
 	//vel_limit, Acc_limite_x, Acc_limite_y,
 	double target_limit_slow[6] = {0.,20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_slow, target_limit_slow, target_);
 
-	string target_status_middle = iniparser_getstring(dict, "target_param:target_status_middle", NULL);
+	string target_status_middle = iniparser_getstring(dict, "target_param:target_status_middle", "");
 	double target_limit_middle[6] = {0., 20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_middle, target_limit_middle, target_);
 
-	string target_status_fast = iniparser_getstring(dict, "target_param:target_status_fast", NULL);
+	string target_status_fast = iniparser_getstring(dict, "target_param:target_status_fast", "");
 	double target_limit_fast[6] = {0., 20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_fast, target_limit_fast, target_);
 
@@ -164,29 +164,29 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 	height_ = iniparser_getint(dict, "map_param:height", -1);
 
 	//radar
-	string radar_params = iniparser_getstring(dict, "radar_param:radar_params", NULL);
+	string radar_params = iniparser_getstring(dict, "radar_param:radar_params", "");
 	initRadarFromString(radar_params, radar_);
 
 	//file_path
-	const char *uav_path = iniparser_getstring(dict, "file_path:uav_path", NULL);
+	const char *uav_path = iniparser_getstring(dict, "file_path:uav_path", "");
 	output_uav_.open(uav_path, ios::binary);
 
-	const char *target_path = iniparser_getstring(dict, "file_path:target_path", NULL);
+	const char *target_path = iniparser_getstring(dict, "file_path:target_path", "");
 	output_target_.open(target_path, ios::binary);
 
-	const char *traj_Point_path = iniparser_getstring(dict, "file_path:traj_Point_path", NULL);
+	const char *traj_Point_path = iniparser_getstring(dict, "file_path:traj_Point_path", "");
 	output_traj_Point_.open(traj_Point_path, ios::binary);
 
-	const char *area_Point_path = iniparser_getstring(dict, "file_path:area_Point_path", NULL);
+	const char *area_Point_path = iniparser_getstring(dict, "file_path:area_Point_path", "");
 	output_area_Point_.open(area_Point_path, ios::binary);
 
-	const char *cove_rate_PSO = iniparser_getstring(dict, "file_path:cove_rate_PSO", NULL);
+	const char *cove_rate_PSO = iniparser_getstring(dict, "file_path:cove_rate_PSO", "");
 	output_coverage_rate_.open(cove_rate_PSO, ios::binary);
 
-	const char *time_consume = iniparser_getstring(dict, "file_path:time_consume", NULL);
+	const char *time_consume = iniparser_getstring(dict, "file_path:time_consume", "");
 	output_time_.open(time_consume, ios::binary);
 
-	const char *destroyed_target_num = iniparser_getstring(dict, "file_path:destroyed_target_num", NULL);
+	const char *destroyed_target_num = iniparser_getstring(dict, "file_path:destroyed_target_num", "");
 	output_target_num_.open(destroyed_target_num, ios::binary);
 
 	return;
@@ -441,12 +441,14 @@ void MultipleSearchAndTrack::updateTargetStates() {
 		}
 
 		bool istracking = false;
-		for(int i = 0; i < uav_.size(); i++)
+		for(int i = 0; i < uav_.size(); i++){
 			if (dist(uav_[i].state.position, temp_target->state.position) <= 0.5 * uav_[i].search_r) {
 				istracking = true;//target been tracked
-				cout << "target " << target_tag + 1 << " is successfully tracked by uav " << i + 1 << endl;
+				//cout << "target " << target_tag + 1 << " is successfully tracked by uav " << i + 1 << endl;
 				break;
 			}
+		}
+#if !DESTORY_MODE
 		if (istracking){
 			(*tracked_)[target_tag] = true;
 			for(int i = 0; i < uav_.size(); i++)
@@ -456,7 +458,7 @@ void MultipleSearchAndTrack::updateTargetStates() {
 			for(int i = 0; i < uav_.size(); i++)
 				uav_[i].Tj[target_tag] = 1;
 		}
-
+#endif 
 		output_target_ << temp_target->state.position.x << " " << temp_target->state.position.y << " ";
 	}
 	output_target_ << endl;
@@ -517,7 +519,7 @@ void MultipleSearchAndTrack::updateUAVStates() {
 				uav_[i].target_state[j].second = cunt;
 #if DESTORY_MODE
 				(*tracked_)[j] = true;
-				cout << "target" << j + 1 << " has been destoryed by uav" << i + 1 << endl;
+				//cout << "target" << j + 1 << " has been destoryed by uav" << i + 1 << endl;
 #endif
 			}
 		}
@@ -685,19 +687,18 @@ void MultipleSearchAndTrack::addUAV(){
 	return;
 }
 
-
 void MultipleSearchAndTrack::run() {
 	char status = 'r';
 	while (cunt < max_simulation_step_)
 	{
-		int key = cv::waitKey(10);
+		// int key = cv::waitKey(10);
 
-		if(key == 'r')
-			status = 'r';
-		else if(key == 'p')
-			status = 'p';
+		// if(key == 'r')
+		// 	status = 'r';
+		// else if(key == 'p')
+		// 	status = 'p';
 
-		if(status == 'p') continue;
+		// if(status == 'p') continue;
 
 		printf("\nprocessing step = %d\n", cunt);
 
@@ -718,22 +719,22 @@ void MultipleSearchAndTrack::run() {
 		}
 
 #if DESTORY_MODE
-		printf("destroyed_target_num = %d\n", destoryed_num);
+		//printf("destroyed_target_num = %d\n", destoryed_num);
 #else
 		// updateMission();
 #endif
 		show();
 
 		output_target_num_ << destoryed_num << endl;
-		if (destoryed_num >= target_.size())
-			break;
+		// if (destoryed_num >= target_.size())
+		// 	break;
 
 		cunt++;
 		
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 	//std::cout << "target_state:" << endl << target_state << endl;
-	std::cout << "All target has been tracked!The total number of step is " << cunt << std::endl;
+	//std::cout << "All target has been tracked!The total number of step is " << cunt << std::endl;
 }
 
 void MultipleSearchAndTrack::destory()
