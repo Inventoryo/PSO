@@ -44,6 +44,7 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 	double max_val = 0;
 	int temp_x, temp_y;
 	int best_x, best_y;
+	int best_dir;
 
 	//find best grid at top layer
 	for (int j = 0; j < 8; j++) {
@@ -52,14 +53,15 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 		if(temp_x < 0 ||temp_x >= (int)layers[top_layer_idx].cols || 
 		   temp_y < 0 ||temp_y >= (int)layers[top_layer_idx].rows)
 			continue;
-		double gain = sqrt(8 - abs(uav_dir - j) % 4);
+		double gain = (8 - abs(uav_dir - j) % 4);
 		double val = gain * layers[top_layer_idx].at<uint16_t>(temp_y, temp_x);
 		if(!visited[temp_y][temp_x] &&  val > max_val){
 			max_val = val;
 			best_x = temp_x;
 			best_y = temp_y;
+			best_dir = j;
 		}
-	}	
+	}
 /*
 	int cur_layer_idx = top_layer_idx;
 	int best_x, best_y;
@@ -90,7 +92,7 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 */
 	x_idx = (best_x + 0.5) * pow(2.0, top_layer_idx) - border;
 	y_idx = (best_y + 0.5) * pow(2.0, top_layer_idx) - border;
-	printf("best_x:%d, best_y:%d, x_idx:%d, y_idx:%d, uav_dir:%d\n", best_x, best_y, x_idx, y_idx, uav_dir);
+	printf("best_x:%d, best_y:%d, x_idx:%d, y_idx:%d, uav_dir:%d, best_dir:%d\n", best_x, best_y, x_idx, y_idx, uav_dir, best_dir);
 	return utility::point2D(x_idx * resolution, y_idx * resolution);
 }
 
@@ -136,6 +138,9 @@ void PSO::initParams(const string& config_file_path){
 	global_map_.height_ = iniparser_getint(dict, "map_param:height", -1);
 	global_map_.width_ = iniparser_getint(dict, "map_param:width", -1);
 	global_map_.resolution_ = iniparser_getint(dict, "map_param:resolution", -1);
+
+	printf("tao_=%f, weight_=%f, c1_=%f, c2_=%f, w2_=%f, eta_=%f\n", tao_, weight_, c1_, c2_, w2_, eta_);
+	printf("max_iteration_=%f, particle_num_=%f, used_layer_num_=%f\n", max_iteration_, particle_num_, used_layer_num_);
 
 
 	//file_path
@@ -206,6 +211,30 @@ void PSO::getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, 
 	base_angle_ = base_angle_ / base_angle_.distance();
 	// base_angle_ = base_angle_ >= 0 ? base_angle_ : 2 * PI + base_angle_;//0~2*pi
 
+	infulence_.clear();
+	printf("infulence_.size:%d\n", infulence_.size());
+	for(int i = 0; i < target_->size(); i++){
+		printf("cur_uav_->target_state[%d].second:%d\n", i, cur_uav_->target_state[i].second);
+		if(cur_T - cur_uav_->target_state[i].second > FORGET_TIME) continue;
+
+		int d = utility::dist(cur_uav_->target_state[i].first.position, cur_uav_->state.position);
+		d /= 2000;
+		if(d < cur_uav_->k_d){
+			vector<int> uav_idx;
+			for(int j = 0; j < uav.size();j++){
+				if(j == cur_uav_->id) continue;
+				int d = utility::dist(cur_uav_->target_state[i].first.position, uav[j].state.position);
+				d /= 2000;
+				if(d < uav[j].k_d);
+					uav_idx.push_back(j);
+			}
+			infulence_.push_back(make_pair(uav_idx, i));
+		}
+	}
+
+
+	printf("infulence_.size:%d\n", infulence_.size());
+
 #if DEBUG
 	if(uav_idx == DEBUG_IDX){
 		cv::Mat temp;
@@ -237,7 +266,6 @@ void PSO::spreadSwarm() {
 	int j = 0;
 	int max_ite = 1000;
 	while (j < particle_num_ && max_ite--) {
-		
 		double length = 1.1 * cur_uav_->search_r + (cur_uav_->state.velocity.x) * (rand() % 1000) / 1000.0;
 		double theta = 2 * PI * ((rand() % 1000) / 1000.0);
 		temp_particle->state.position.x = length * cos(theta) + cur_uav_->state.position.x;
@@ -313,29 +341,21 @@ double PSO::calculateFitness(particle* particle){
 
 	}
 
-	for (int target_id = 0; target_id < target_->size(); target_id++) { //target influence
-		if (cur_T_ - cur_uav_->target_state[target_id].second < FORGET_TIME) {//target has been spotted
-			d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
-			d /= cur_uav_->search_r;
+	for(auto pa:infulence_){
+		int target_id = pa.second;
+		d = utility::dist(cur_uav_->target_state[target_id].first.position, particle->state.position);
+		d /= 2000;
+		if(d < 1) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + sqrt(d));
+		else if(d < cur_uav_->k_d) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + d * d);
+		for(auto u_idx:pa.first){
+			utility::UAV &u = (*uav_)[u_idx];
+			d = utility::dist(u.traj_Point.position, particle->state.position);
+			d /= 2000;
 
-			if(d < 1) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + sqrt(d));
-			else if(d < cur_uav_->k_d) fitness_2 += 1.0 * cur_uav_->k_att / ( 0.1 + d * d);
+			if(d < 1) fitness_2 -= 1.0 * u.k_rep / ( 0.1 + sqrt(d) );
+			else if(d < cur_uav_->k_d) fitness_2 -= 1.0 * u.k_rep / ( 0.1 + d * d);
 		}
 	}
-
-	int cur_uav_num = uav_->size();
-  	for (int uav_id = 0; uav_id < cur_uav_num; uav_id++) {  //task competition
-		if(uav_id == cur_uav_->id) continue;
-	 	d = utility::dist((*uav_)[uav_id].traj_Point.position, particle->state.position);
-		d /= cur_uav_->search_r;
-
-		if(d < 1) fitness_2 -= 1.0 * (*uav_)[uav_id].k_rep / ( 0.1 + sqrt(d) );
-		else if(d < cur_uav_->k_d) fitness_2 -= 1.0 * (*uav_)[uav_id].k_rep / ( 0.1 + d * d);
-
-	}
-
-
-
 
 	//fitness3
 	utility::point2D particle_angle = particle->state.position - cur_uav_->state.position;

@@ -67,6 +67,8 @@ private:
 	ofstream output_uav_state;
 	ofstream output_best_state;
 	vector<cv::Mat> layers_;
+
+	vector<pair<vector<int>, int>> infulence_;
 	
 	double tao_;
 	double weight_;

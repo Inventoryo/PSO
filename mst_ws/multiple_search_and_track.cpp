@@ -1,7 +1,7 @@
 
 #include "multiple_search_and_track.h"
 #include <thread>
-#define REPLANNING_NUM 10
+#define REPLANNING_NUM 1
 
 #define DESTORY_MODE 1
 
@@ -126,36 +126,36 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 	max_simulation_step_   = iniparser_getint(dict, "common_param:max_simulation_step", -1);
 
 	//uav
-	string uav_status_slow = iniparser_getstring(dict, "uav_param:uav_status_slow", "");
-	//vel_limit, Acc_limite_x, Acc_limite_y, h, search_r
-	double uav_limit_slow[11] = {0., 30., -0.4, 0.4, -G * tan(30.0 * PI / 180.0), G * tan(30.0 * PI / 180.0), 400, 2000, 5.0, 5.1, 5.0};
-	initUAVFromString(uav_status_slow, uav_limit_slow, uav_, 0);
-
-	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", "");
-	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1000, 5.0, 5.1, 5.0};
-	initUAVFromString(uav_status_middle, uav_limit_middle, uav_, 0);
-
 	string uav_status_fast = iniparser_getstring(dict, "uav_param:uav_status_fast", "");
-	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 800, 2000, 2.0, 2.1, 2.0};
+	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 800, 2000, 2.0, 2.1, 4.0};
 	initUAVFromString(uav_status_fast, uav_limit_fast, uav_, 0);
 
+	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", "");
+	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1500, 5.0, 5.1, 10.0};
+	initUAVFromString(uav_status_middle, uav_limit_middle, uav_, 0);
+
+	string uav_status_slow = iniparser_getstring(dict, "uav_param:uav_status_slow", "");
+	//vel_limit, Acc_limite_x, Acc_limite_y, h, search_r
+	double uav_limit_slow[11] = {0., 30., -0.4, 0.4, -G * tan(30.0 * PI / 180.0), G * tan(30.0 * PI / 180.0), 400, 3000, 5.0, 5.1, 5.0};
+	initUAVFromString(uav_status_slow, uav_limit_slow, uav_, 0);
+
 	string uav_status_extre = iniparser_getstring(dict, "uav_param:uav_status_extre", "");
-	double uav_limit_extre[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1000, 5.0, 5.1, 5.0};
+	double uav_limit_extre[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1500, 5.0, 5.1, 10.0};
 	initUAVFromString(uav_status_extre, uav_limit_extre, extre_uav_, uav_.size());
 	extre_step_ = iniparser_getint(dict, "uav_param:extre_step", -1);
 
 	//target
 	string target_status_slow = iniparser_getstring(dict, "target_param:target_status_slow", "");
 	//vel_limit, Acc_limite_x, Acc_limite_y,
-	double target_limit_slow[6] = {0.,20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
+	double target_limit_slow[6] = {0.,15., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_slow, target_limit_slow, target_);
 
 	string target_status_middle = iniparser_getstring(dict, "target_param:target_status_middle", "");
-	double target_limit_middle[6] = {0., 20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
+	double target_limit_middle[6] = {0., 15., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_middle, target_limit_middle, target_);
 
 	string target_status_fast = iniparser_getstring(dict, "target_param:target_status_fast", "");
-	double target_limit_fast[6] = {0., 20., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
+	double target_limit_fast[6] = {0., 15., -0.4, 0.4, -G * tan( 20.0 * PI / 180.0 ), G * tan( 20.0 * PI / 180.0 )};
 	initTargetFromString(target_status_fast, target_limit_fast, target_);
 
 	//map
@@ -326,9 +326,7 @@ void MultipleSearchAndTrack::updateArtificalPotentialFieldStateImpl(utility::UAV
 			Radar_point = radar.center_point + (uav->state.position - radar.center_point)*(radar.R / (uav->state.position - radar.center_point).distance());
 			F_rep = F_rep + computeRepulsion(uav->state.position, Radar_point);
 		}
-
 	}
-
 
 	//sum
 	utility::point2D F = F_att * k_att + F_rep * k_ref;
@@ -525,7 +523,7 @@ void MultipleSearchAndTrack::updateUAVStates() {
 		}
 	}
 
-	if(cunt<300){
+	if(cunt < extre_step_){
 		for(auto c:extre_uav_){
 			output_uav_ << c.state.position.x << " " << c.state.position.y << " " << c.search_r << " ";
 			output_traj_Point_ << c.traj_Point.position.x << " " << c.traj_Point.position.y << " ";
@@ -560,10 +558,10 @@ void MultipleSearchAndTrack::informationShare() {
 					int y = uav_[i].target_state[k].first.position.y / resolution_;
 					if(x<0||x>=width_ || y<0||y>=height_)
 						continue;
-					if (global_map_[j](x, y).search_time > uav_[j].target_state[k].second + 1) {
-						uav_[i].target_state[k].second = -FORGET_TIME;
-						uav_[j].target_state[k].second = -FORGET_TIME;
-					}
+					// if (global_map_[j](x, y).search_time > uav_[j].target_state[k].second + 1) {
+					// 	uav_[i].target_state[k].second = -FORGET_TIME;
+					// 	uav_[j].target_state[k].second = -FORGET_TIME;
+					// }
 				}
 			}
 		}
@@ -794,7 +792,6 @@ void MultipleSearchAndTrack::show() {
 		cv::circle(temp, cv::Point(x_idx, y_idx), r, (200, 200, 200), 5);
 	}
 
-	cv::namedWindow("111", cv::WINDOW_AUTOSIZE);
 	cv::imshow("111", temp);
 	cv::waitKey(10);
 

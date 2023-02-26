@@ -23,7 +23,7 @@ using namespace std;
 
 class MultipleSearchAndTrack{
 public:
-	MultipleSearchAndTrack(){};
+	MultipleSearchAndTrack(){cv::namedWindow("111", cv::WINDOW_AUTOSIZE);};
 	~MultipleSearchAndTrack(){};
 	void run();
 	void init(const string& config_file_path);
