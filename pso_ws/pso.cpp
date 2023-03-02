@@ -11,32 +11,41 @@ int Fdrections[9][2] = { { -1, -1 }, { 0, -1 }, { 1, -1 },
 						 { -1,  0 }, { 0,  0 }, { 1,  0 },
 						 { -1,  1 }, { 0,  1 }, { 1,  1 }};
 
+utility::point2I projectToCertainLayer(const utility::point2D &position,
+	const int resolution, const int layer, const int border,
+	const int height, const int width){
+	utility::point2I res;
+	int x_idx = position.x / resolution;
+	x_idx = min(max(0, x_idx), width - 1) + border;
+
+	int y_idx = position.y / resolution;
+	y_idx = min(max(0, y_idx), height - 1) + border;
+	res.x = x_idx >> layer;
+	res.y = y_idx >> layer;
+	return res;
+}
+
 utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::UAV> &uav, int uav_idx,  int border, int resolution) {
 
 	utility::UAV &cur_uav = uav[uav_idx];
-	int top_layer_idx = layers.size() - 2;
+	int top_layer_idx = layers.size() - 1;
+	int height = layers[0].rows;
+	int width = layers[0].cols;
+
+	utility::point2I tp_idx_cp = projectToCertainLayer(cur_uav.state.position, resolution, top_layer_idx, border, height, width);
+	utility::point2I tp_idx_cag = projectToCertainLayer(cur_uav.area_guider, resolution, top_layer_idx, border, height, width);
+
+	//step 1 find best area
 	vector<vector<bool>> visited(layers[top_layer_idx].cols, vector<bool>(layers[top_layer_idx].rows, false));
+	// for(auto c:uav){
+	// 	if(c.id == uav_idx)
+	// 		continue;
+	// 	utility::point2I idx_cag = projectToCertainLayer(c.area_guider, resolution, top_layer_idx, border, height, width);
+	// 	visited[idx_cag.y][idx_cag.x] = true;
+	// }
 
-	for(auto c:uav){
-		if(c.id == uav_idx)
-			continue;
-		int x_idx = c.area_guider.x / resolution;
-		x_idx = min(max(1, x_idx), layers[0].cols - 1) + border;
-		x_idx >>= top_layer_idx;
-
-		int y_idx = c.area_guider.y / resolution;
-		y_idx = min(max(1, y_idx), layers[0].rows - 1) + border;
-		y_idx >>= top_layer_idx;
-		visited[y_idx][x_idx] = true;
-	}
-
-	int x_idx = cur_uav.state.position.x / resolution;
-	x_idx = min(max(1, x_idx), layers[0].cols - 1) + border;
-
-	int y_idx = cur_uav.state.position.y / resolution;
-	y_idx = min(max(1, y_idx), layers[0].rows - 1) + border;
-	int cur_idx_x = x_idx >> top_layer_idx; 
-	int cur_idx_y = y_idx >> top_layer_idx;
+	// if(!visited[tp_idx_cag.y][tp_idx_cag.x] && !tp_idx_cp.isSamePoint(tp_idx_cag))
+	// 	return cur_uav.area_guider;
 
 	int uav_dir = (4.0 * (cur_uav.state.velocity.y + 3.0 * PI / 4.0) / PI + 0.5);
 	uav_dir = uav_dir % 8;
@@ -46,6 +55,8 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 	int best_x, best_y;
 	int best_dir;
 
+	int cur_idx_x = tp_idx_cp.x;
+	int cur_idx_y = tp_idx_cp.y;
 	//find best grid at top layer
 	for (int j = 0; j < 8; j++) {
 		temp_x = cur_idx_x + DIRECTION[j][0];
@@ -53,7 +64,8 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 		if(temp_x < 0 ||temp_x >= (int)layers[top_layer_idx].cols || 
 		   temp_y < 0 ||temp_y >= (int)layers[top_layer_idx].rows)
 			continue;
-		double gain = (8 - abs(uav_dir - j) % 4);
+		double gain = abs(uav_dir - j);
+		gain = gain < 4 ? 8 - gain : gain;
 		double val = gain * layers[top_layer_idx].at<uint16_t>(temp_y, temp_x);
 		if(!visited[temp_y][temp_x] &&  val > max_val){
 			max_val = val;
@@ -62,59 +74,59 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 			best_dir = j;
 		}
 	}
-/*
-	int cur_layer_idx = top_layer_idx;
-	int best_x, best_y;
-	while (cur_layer_idx >= layers.size() -3) {
-		int max_val = 0;
-		int temp_x, temp_y;
 
-		for (int j = 0; j < 8; j++) {
-			temp_x = cur_idx_x + DIRECTION[j][0];
-			temp_x = min(max(0, temp_x), (int)layers[cur_layer_idx].cols - 1);
-			temp_y = cur_idx_y + DIRECTION[j][1];
-			temp_y = min(max(0, temp_y), (int)layers[cur_layer_idx].rows - 1);
+	// Search down to the best
+	int cur_layer_idx = top_layer_idx - 1;
+	cur_idx_x = best_x * 2 + 1;
+	cur_idx_y = best_y * 2 + 1;
+	while (cur_layer_idx >= 1) {
+		double max_val = 0;
+		int temp_x, temp_y;
+		for (int j = 0; j < 9; j++) {
+			temp_x = cur_idx_x + Fdrections[j][0];
+			temp_y = cur_idx_y + Fdrections[j][1];
+
+			if(temp_x < 0 ||temp_x >= (int)layers[cur_layer_idx].cols ||
+		    	temp_y < 0 ||temp_y >= (int)layers[cur_layer_idx].rows)
+				continue;
+
 			utility::point2D temp_p = utility::point2D((temp_x + 0.5) * pow(2, cur_layer_idx) * resolution, 
 													   (temp_y + 0.5) * pow(2, cur_layer_idx) * resolution);
 
-			double dd = utility::dist(temp_p, uav_state.position) / resolution;
-			if (max_val <= layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)))) {
-				max_val = layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) + 100 * (sqrt(abs(dd)));
+			double dd = utility::dist(temp_p, cur_uav.state.position) / (pow(2, cur_layer_idx) * resolution);
+			double d_gain = 1.0 / (1.0 + dd * dd);
+			if (max_val <= layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) * d_gain) {
+				max_val = layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) * d_gain;
 				best_x = temp_x;
 				best_y = temp_y;
 			}
 		}
 		cur_idx_x = (best_x) * 2;
 		cur_idx_y = (best_y) * 2;
-		
+
 		cur_layer_idx--;
 	}
-*/
-	x_idx = (best_x + 0.5) * pow(2.0, top_layer_idx) - border;
-	y_idx = (best_y + 0.5) * pow(2.0, top_layer_idx) - border;
-	printf("best_x:%d, best_y:%d, x_idx:%d, y_idx:%d, uav_dir:%d, best_dir:%d\n", best_x, best_y, x_idx, y_idx, uav_dir, best_dir);
-	return utility::point2D(x_idx * resolution, y_idx * resolution);
+
+	cur_idx_x = (best_x + 0.5) * pow(2.0, cur_layer_idx + 1) - border;
+	cur_idx_y = (best_y + 0.5) * pow(2.0, cur_layer_idx + 1) - border;
+	printf("best_x:%d, best_y:%d, cur_idx_x:%d, cur_idx_y:%d, uav_dir:%d, best_dir:%d\n", best_x, best_y, cur_idx_x, cur_idx_y, uav_dir, best_dir);
+	return utility::point2D(cur_idx_x * resolution, cur_idx_y * resolution);
 }
 
-double getUncertanty(const vector<cv::Mat> &layers, const double x, const double y, int border, int resulution, int used_layer_num){
-	double res = 0 ;
-	int x_idx = x / resulution;
-	x_idx = x_idx < 0 ? 0 : x_idx >= layers[0].cols ? layers[0].cols - 1 : x_idx;
-	x_idx += border;
-	int y_idx = y / resulution;
-	y_idx = y_idx < 0 ? 0 : y_idx >= layers[0].rows ? layers[0].rows - 1 : y_idx;
-	y_idx += border;
+double getUncertanty(const vector<cv::Mat> &layers, const utility::point2D &position, int border, int resulution, int used_layer_num){
+	int height = layers[0].rows;
+	int width = layers[0].cols;
 
+	double uncertanty = 0;
 	double weight = 1.0;
 	double sum_w = 0;
 	for(int i = 0; i < used_layer_num; i++){
+		utility::point2I p = projectToCertainLayer(position, resulution, i, border, height, width);
 		sum_w += weight;
-		res += weight * layers[i].at<uint16_t>(y_idx, x_idx);
-		x_idx >>= 1;
-		y_idx >>= 1;
-		weight *= 1.1;
+		uncertanty += weight * layers[i].at<uint16_t>(p.y, p.x);
+		weight *= 0.5;
 	}
-	return res / sum_w;
+	return uncertanty / sum_w;
 }
 
 void PSO::initParams(const string& config_file_path){
@@ -212,9 +224,7 @@ void PSO::getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, 
 	// base_angle_ = base_angle_ >= 0 ? base_angle_ : 2 * PI + base_angle_;//0~2*pi
 
 	infulence_.clear();
-	printf("infulence_.size:%d\n", infulence_.size());
 	for(int i = 0; i < target_->size(); i++){
-		printf("cur_uav_->target_state[%d].second:%d\n", i, cur_uav_->target_state[i].second);
 		if(cur_T - cur_uav_->target_state[i].second > FORGET_TIME) continue;
 
 		int d = utility::dist(cur_uav_->target_state[i].first.position, cur_uav_->state.position);
@@ -231,9 +241,6 @@ void PSO::getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, 
 			infulence_.push_back(make_pair(uav_idx, i));
 		}
 	}
-
-
-	printf("infulence_.size:%d\n", infulence_.size());
 
 #if DEBUG
 	if(uav_idx == DEBUG_IDX){
@@ -327,11 +334,11 @@ double PSO::calculateFitness(particle* particle){
 	double fitness_3 = 0;
 	//fitness1
 	//double t = global_map_->computeUncetanty(particle->state, cur_uav_->search_r, cur_T_);
-	double t = getUncertanty(layers_, particle->state.position.x, particle->state.position.y, border_, global_map_.resolution_, used_layer_num_) / FORGET_TIME;
+	double t = getUncertanty(layers_, particle->state.position, border_, global_map_.resolution_, used_layer_num_) / FORGET_TIME;
 	//double p  = (1 - exp(-tao * t)) ;
 	double d = utility::dubinsDistance(cur_uav_->state, particle->state, min_R_);
 	d = (d - cur_uav_->search_r) / cur_uav_->search_r ;
-	fitness_1 =  t / (1.0 + d * d );
+	fitness_1 =  t / (0.1 + d * d ) * 0.1;
 
 	for (int uav_id = 0; uav_id < uav_->size(); uav_id++) {  //uav avoidance
 		if(uav_id == cur_uav_->id) continue;
@@ -362,7 +369,7 @@ double PSO::calculateFitness(particle* particle){
 	particle_angle = particle_angle / particle_angle.distance();
 	double angle = acos(particle_angle.x * base_angle_.x + particle_angle.y * base_angle_.y);
 
-	fitness_3 = 1.0/(1.0 + exp(abs(angle)));
+	fitness_3 = 1.0/(1.0 + exp(angle));
 
 	fitness = eta_ * fitness_1 + (1.0 - eta_) * fitness_3 + w2_ * fitness_2 ;
 

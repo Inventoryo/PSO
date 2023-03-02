@@ -74,6 +74,8 @@ void initUAVFromString(string& status, const double* limite, vector<utility::UAV
 		uav_temp.state.accelerate.x = 0;
 		uav_temp.state.accelerate.y = 0;
 
+		uav_temp.area_guider = uav_temp.state.position;
+
 		uav_temp.Vel_limite[0]   = limite[0];
 		uav_temp.Vel_limite[1]   = limite[1];
 		uav_temp.Acc_limite_x[0] = limite[2];
@@ -127,11 +129,11 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 
 	//uav
 	string uav_status_fast = iniparser_getstring(dict, "uav_param:uav_status_fast", "");
-	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 800, 2000, 2.0, 2.1, 4.0};
+	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 800, 2000, 2.0, 2.1, 2.0};
 	initUAVFromString(uav_status_fast, uav_limit_fast, uav_, 0);
 
 	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", "");
-	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1500, 5.0, 5.1, 10.0};
+	double uav_limit_middle[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1500, 5.0, 5.1, 5.0};
 	initUAVFromString(uav_status_middle, uav_limit_middle, uav_, 0);
 
 	string uav_status_slow = iniparser_getstring(dict, "uav_param:uav_status_slow", "");
@@ -388,8 +390,8 @@ void MultipleSearchAndTrack::init(const string& config_file_path) {
 			uav_temp.Tj[j] = 1;
 		}
 
-		global_map_[i].init(width_, height_, resolution_, -FORGET_TIME);
-		global_map_[i].updateMap(&uav_temp, cunt);
+		global_map_[uav_[i].id].init(width_, height_, resolution_, -FORGET_TIME);
+		global_map_[uav_[i].id].updateMap(&uav_temp, cunt);
 		union_.parent.push_back(uav_temp.id);
 	}
 
@@ -442,7 +444,7 @@ void MultipleSearchAndTrack::updateTargetStates() {
 		for(int i = 0; i < uav_.size(); i++){
 			if (dist(uav_[i].state.position, temp_target->state.position) <= 0.5 * uav_[i].search_r) {
 				istracking = true;//target been tracked
-				//cout << "target " << target_tag + 1 << " is successfully tracked by uav " << i + 1 << endl;
+				cout << "target " << target_tag + 1 << " is successfully tracked by uav " << i + 1 << endl;
 				break;
 			}
 		}
@@ -477,7 +479,7 @@ void MultipleSearchAndTrack::updateUAVStates() {
 			start = clock();
 			switch (run_mode_){
 			case 0:{
-				pso_.getNextPoint(global_map_[i], radar_, target_, uav_, cunt, i);
+				pso_.getNextPoint(global_map_[cur_uav->id], radar_, target_, uav_, cunt, i);
 				break;
 			};
 			case 1:{
@@ -489,7 +491,7 @@ void MultipleSearchAndTrack::updateUAVStates() {
 				int dir = 4 * (uav_[i].state.velocity.y + 3 * PI / 4) / PI;
 				dir = dir % 8;
 
-				pose_out = aco_.run(global_map_[i], pose_in, dir, uav_[i].search_r / resolution_, i, cunt);
+				pose_out = aco_.run(global_map_[cur_uav->id], pose_in, dir, uav_[i].search_r / resolution_, i, cunt);
 
 				uav_[i].traj_Point.position.x = pose_out.x * resolution_;
 				uav_[i].traj_Point.position.y = pose_out.y * resolution_;
@@ -509,7 +511,7 @@ void MultipleSearchAndTrack::updateUAVStates() {
 		output_uav_ << uav_[i].state.position.x << " " << uav_[i].state.position.y << " " << uav_[i].search_r << " ";
 		output_traj_Point_ << uav_[i].traj_Point.position.x << " " << uav_[i].traj_Point.position.y << " ";
 		//output_area_Point_ << uav_[i].area_guider.x << " " << uav_[i].area_guider.y << " ";
-		global_map_[i].updateMap(&(*cur_uav), cunt);
+		global_map_[cur_uav->id].updateMap(&(*cur_uav), cunt);
 
 		for (int j = 0; j < target_.size(); j++) {//target inf0
 			if (dist(target_[j].state.position, uav_[i].state.position)<uav_[i].search_r) {
@@ -685,6 +687,21 @@ void MultipleSearchAndTrack::addUAV(){
 	return;
 }
 
+void MultipleSearchAndTrack::removeUAV(int uav_idx){
+
+	int reduce = 0;
+	for ( auto ite = uav_.begin();ite!=uav_.end();ite++) {
+		if(ite->id == uav_idx){
+			uav_.erase(ite);
+			union_.parent.erase(union_.parent.begin()+ uav_idx);
+			reduce = 1;
+		}
+		ite->id -= reduce;
+	}
+
+	return;
+}
+
 void MultipleSearchAndTrack::run() {
 	char status = 'r';
 	while (cunt < max_simulation_step_)
@@ -755,11 +772,15 @@ void MultipleSearchAndTrack::destory()
 void MultipleSearchAndTrack::show() {
 
 	utility::MAP& global_map = this->global_map_[0];
-	cv::Mat bottom_map(global_map.height_, global_map.width_, CV_16UC1);
+	int resolution = global_map.resolution_;
+	int height = global_map.height_;
+	int width = global_map.width_;
+	cv::Mat bottom_map(height, width, CV_16UC1);
 
-	for(int i = 0; i < global_map.height_; i++){
-		for(int j = 0; j < global_map.width_; j++){
-			bottom_map.at<uint16_t>(global_map.height_ - i - 1, j) = cunt > (global_map.map_[i * global_map.width_ + j].search_time + FORGET_TIME) ? FORGET_TIME : (cunt - global_map.map_[i * global_map.width_ + j].search_time);
+	for(int i = 0; i < height; i++){
+		for(int j = 0; j < width; j++){
+			bottom_map.at<uint16_t>(height - i - 1, j) = cunt > (global_map.map_[i * width + j].search_time + FORGET_TIME) ? 
+				FORGET_TIME : (cunt - global_map.map_[i * width + j].search_time);
 		}
 	}
 
@@ -768,27 +789,27 @@ void MultipleSearchAndTrack::show() {
 	cv::convertScaleAbs(bottom_map, temp, 0.2);
 
 	for(int i = 0; i < target_.size(); i++){
-		int x_idx = target_.at(i).state.position.x / global_map_[0].resolution_;
-		int y_idx = global_map.height_ - 1 - target_.at(i).state.position.y / global_map_[0].resolution_;
+		int x_idx = target_.at(i).state.position.x / resolution;
+		int y_idx = height - 1 - target_.at(i).state.position.y / resolution;
 		cv::circle(temp, cv::Point(x_idx, y_idx), 2, (100, 100, 100), 5);
 	}
 
 	for(int i = 0; i < uav_.size(); i++){
-		int x_idx = uav_.at(i).traj_Point.position.x / global_map_[0].resolution_;
-		int y_idx = global_map.height_ - 1 - uav_.at(i).traj_Point.position.y / global_map_[0].resolution_;
+		int x_idx = uav_.at(i).traj_Point.position.x / resolution;
+		int y_idx = height - 1 - uav_.at(i).traj_Point.position.y / resolution;
 		cv::circle(temp, cv::Point(x_idx, y_idx), 3, (150, 150, 150), 5);
 	}
 
 	for(int i = 0; i < uav_.size(); i++){
-		int x_idx = uav_.at(i).area_guider.x / global_map_[0].resolution_;
-		int y_idx = global_map.height_ - 1 - uav_.at(i).area_guider.y / global_map_[0].resolution_;
+		int x_idx = uav_.at(i).area_guider.x / resolution;
+		int y_idx = height - 1 - uav_.at(i).area_guider.y / resolution;
 		cv::circle(temp, cv::Point(x_idx, y_idx), 5, (200, 200, 200), 5);
 	}
 
 	for(auto radar:radar_){
-		int x_idx = radar.center_point.x / global_map_[0].resolution_;
-		int y_idx = global_map.height_ - 1 - radar.center_point.y / global_map_[0].resolution_;
-		int r = radar.R / global_map_[0].resolution_;
+		int x_idx = radar.center_point.x / resolution;
+		int y_idx = height - 1 - radar.center_point.y / resolution;
+		int r = radar.R / resolution;
 		cv::circle(temp, cv::Point(x_idx, y_idx), r, (200, 200, 200), 5);
 	}
 

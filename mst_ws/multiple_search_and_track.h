@@ -43,6 +43,7 @@ private:
 	void informationShare();
 	void updateMission();
 	void addUAV();
+	void removeUAV(int uav_idx);
 
 	float computeUncetanty(utility::State& state, double search_r, int id);
 	double sigmod(double x){ return 1.0 / (1 + exp(-x)); };

@@ -12,9 +12,9 @@ using namespace std;
 #define COMMUNICATION_R 2000000.0
 #define FORGET_TIME 5000
 
-static const int DIRECTION[8][2] ={ { -1, -1 }, { 0, -1 }, { 1, -1 },
-                                    { -1,  0 },            { 1,  0 },
-                                    { -1,  1 }, { 0,  1 }, { 1,  1 } };
+static const int DIRECTION[8][2] ={ { -1, -1 }, { 0, -1 }, { 1,  -1 }, {  1,  0 },
+                                    { 1,   1 }, { 0,  1 }, { -1,  1 }, { -1,  0 } };
+
 
 //particle
 #define MAX_LAYER_NUM  8

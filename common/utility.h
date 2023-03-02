@@ -36,6 +36,10 @@ struct point2I
 
 	double angle() {return y >= 0 ? atan2(y, x) : 2 * PI + atan2(y, x);};
 
+	bool isSamePoint(const point2I& b){
+		return this->x == b.x && this->y == b.y;
+	}
+
 	point2I operator+(const point2I& b) {
 		point2I temp;
 		temp.x = this->x + b.x;
