@@ -142,7 +142,7 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 	initUAVFromString(uav_status_slow, uav_limit_slow, uav_, 0);
 
 	string uav_status_extre = iniparser_getstring(dict, "uav_param:uav_status_extre", "");
-	double uav_limit_extre[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1500, 5.0, 5.1, 10.0};
+	double uav_limit_extre[11] = {30., 50., -0.5, 0.5, -G * tan(25.0 * PI / 180.0), G * tan(25.0 * PI / 180.0), 400, 1500, 5.0, 5.1, 5.0};
 	initUAVFromString(uav_status_extre, uav_limit_extre, extre_uav_, uav_.size());
 	extre_step_ = iniparser_getint(dict, "uav_param:extre_step", -1);
 
@@ -259,15 +259,22 @@ void MultipleSearchAndTrack::updateUAVStatesInDubinsState(utility::UAV* uav) {
 	return;
 }
 
-utility::point2D MultipleSearchAndTrack::computeRepulsion(utility::point2D& start, utility::point2D& obstacle) {
+utility::point2D MultipleSearchAndTrack::computeRepulsion(utility::point2D& start, utility::point2D& obstacle, double R) {
 	utility::point2D F_rep = start- obstacle;
+	double D = F_rep.distance();
+	F_rep = F_rep / D;
 
-	if (F_rep.distance() > 10000)
-		F_rep = F_rep * 0;
-	else if (F_rep.distance() > 0.000001) 
-		F_rep = F_rep * (1 / pow(F_rep.distance(), 2));
-		
-	return F_rep;
+	D /= 1000;
+	R /= 1000;
+
+	double scale = 0;
+	if(D > R){
+		D -= R;
+		if(D < 2.0)
+			scale = 1.0 / (D+0.00001) * (D+0.00001);
+	}
+
+	return F_rep * scale;
 };
 
 double MultipleSearchAndTrack::computeEnage(utility::State  & start, utility::point2D& obstacle,double zero_dist) {
@@ -295,40 +302,27 @@ double MultipleSearchAndTrack::computeAttEnage(utility::State& start, utility::S
 
 utility::point2D MultipleSearchAndTrack::computeAttraction(utility::point2D& start, utility::point2D& goal) {
 	utility::point2D F_att = goal - start;
-	return F_att;
+	return F_att / 10.0;
 };
 
 void MultipleSearchAndTrack::updateArtificalPotentialFieldStateImpl(utility::UAV *uav, utility::State &goal, utility::State &next) {
-	double k_att = 1, k_ref = 100000.0;
+	double k_att = 1.0, k_ref = 80.0;
 
 	//compute Attraction
 	utility::point2D F_att = computeAttraction(uav->state.position, goal.position);
 
-	// //compute Repulsion
-	// utility::point2D obstacle_point;
-	// if (uav->state.position.x > obs_->point_lists[1].x)
-	// 	obstacle_point.x = obs_->point_lists[1].x;
-	// else if (uav->state.position.x < obs_->point_lists[0].x)
-	// 	obstacle_point.x = obs_->point_lists[0].x;
-	// else
-	// 	obstacle_point.x = uav->state.position.x;
-	// if (uav->state.position.y > obs_->point_lists[3].y)
-	// 	obstacle_point.y = obs_->point_lists[3].y;
-	// else if (uav->state.position.y < obs_->point_lists[0].y)
-	// 	obstacle_point.y = obs_->point_lists[0].y;
-	// else
-	// 	obstacle_point.y = uav->state.position.y;
-	// utility::point2D F_rep = computeRepulsion(uav->state.position, obstacle_point);
-
 	utility::point2D F_rep(0, 0);
 	//compute Radar
 	for(auto radar:radar_){
-		if(radar.R > (uav->state.position - radar.center_point).distance()){
-			utility::point2D Radar_point;
-			Radar_point = radar.center_point + (uav->state.position - radar.center_point)*(radar.R / (uav->state.position - radar.center_point).distance());
-			F_rep = F_rep + computeRepulsion(uav->state.position, Radar_point);
-		}
+		F_rep = F_rep + computeRepulsion(uav->state.position, radar.center_point, radar.R);
 	}
+
+	for(auto u:uav_){
+		if(u.id != uav->id)
+			F_rep = F_rep + computeRepulsion(uav->state.position, u.state.position, 0);
+	}
+
+	//printf("F_rep.distance() = %f, F_att.distance() = %f\n", F_rep.distance(), F_att.distance());
 
 	//sum
 	utility::point2D F = F_att * k_att + F_rep * k_ref;
@@ -378,7 +372,7 @@ void MultipleSearchAndTrack::init(const string& config_file_path) {
 	aco_.setParam(10, 500, 2, 4, 100, 0.8);
 	pso_.create(config_file_path);
 
-	srand((int(time(0))));
+	srand((unsigned)time(NULL));
 
 	for ( int i = 0; i < uav_.size(); i++) {
 		utility::UAV& uav_temp = uav_[i];

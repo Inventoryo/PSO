@@ -8,7 +8,7 @@ int main(int argc, char **argv){
     mst.run();
     mst.destory();
 
-    do printf("Jobs done! press q to quit\n");
-    while(getchar()!='q');
+    // do printf("Jobs done! press q to quit\n");
+    // while(getchar()!='q');
     return -1;
 }

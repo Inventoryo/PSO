@@ -11,6 +11,8 @@ int Fdrections[9][2] = { { -1, -1 }, { 0, -1 }, { 1, -1 },
 						 { -1,  0 }, { 0,  0 }, { 1,  0 },
 						 { -1,  1 }, { 0,  1 }, { 1,  1 }};
 
+int FourDir[4][2] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+
 utility::point2I projectToCertainLayer(const utility::point2D &position,
 	const int resolution, const int layer, const int border,
 	const int height, const int width){
@@ -30,7 +32,7 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 	utility::UAV &cur_uav = uav[uav_idx];
 	int top_layer_idx = layers.size() - 1;
 	int height = layers[0].rows;
-	int width = layers[0].cols;
+	int width  = layers[0].cols;
 
 	utility::point2I tp_idx_cp = projectToCertainLayer(cur_uav.state.position, resolution, top_layer_idx, border, height, width);
 	utility::point2I tp_idx_cag = projectToCertainLayer(cur_uav.area_guider, resolution, top_layer_idx, border, height, width);
@@ -77,14 +79,14 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 
 	// Search down to the best
 	int cur_layer_idx = top_layer_idx - 1;
-	cur_idx_x = best_x * 2 + 1;
-	cur_idx_y = best_y * 2 + 1;
-	while (cur_layer_idx >= 1) {
+	cur_idx_x = best_x * 2;
+	cur_idx_y = best_y * 2;
+	while (cur_layer_idx >= 0) {
 		double max_val = 0;
 		int temp_x, temp_y;
-		for (int j = 0; j < 9; j++) {
-			temp_x = cur_idx_x + Fdrections[j][0];
-			temp_y = cur_idx_y + Fdrections[j][1];
+		for (int j = 0; j < 4; j++) {
+			temp_x = cur_idx_x + FourDir[j][0];
+			temp_y = cur_idx_y + FourDir[j][1];
 
 			if(temp_x < 0 ||temp_x >= (int)layers[cur_layer_idx].cols ||
 		    	temp_y < 0 ||temp_y >= (int)layers[cur_layer_idx].rows)
@@ -94,9 +96,10 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 													   (temp_y + 0.5) * pow(2, cur_layer_idx) * resolution);
 
 			double dd = utility::dist(temp_p, cur_uav.state.position) / (pow(2, cur_layer_idx) * resolution);
-			double d_gain = 1.0 / (1.0 + dd * dd);
-			if (max_val <= layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) * d_gain) {
-				max_val = layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x) * d_gain;
+			double d_gain = 1.0 / (1.0 + 100 * dd);
+			double val = d_gain * layers[cur_layer_idx].at<uint16_t>(temp_y, temp_x);
+			if (max_val <= val) {
+				max_val = val;
 				best_x = temp_x;
 				best_y = temp_y;
 			}
@@ -109,7 +112,7 @@ utility::point2D findBestPoints(const vector<cv::Mat> &layers, vector<utility::U
 
 	cur_idx_x = (best_x + 0.5) * pow(2.0, cur_layer_idx + 1) - border;
 	cur_idx_y = (best_y + 0.5) * pow(2.0, cur_layer_idx + 1) - border;
-	printf("best_x:%d, best_y:%d, cur_idx_x:%d, cur_idx_y:%d, uav_dir:%d, best_dir:%d\n", best_x, best_y, cur_idx_x, cur_idx_y, uav_dir, best_dir);
+	//printf("best_x:%d, best_y:%d, cur_idx_x:%d, cur_idx_y:%d, uav_dir:%d, best_dir:%d\n", best_x, best_y, cur_idx_x, cur_idx_y, uav_dir, best_dir);
 	return utility::point2D(cur_idx_x * resolution, cur_idx_y * resolution);
 }
 
@@ -171,7 +174,7 @@ void PSO::initParams(const string& config_file_path){
 void PSO::create(const string& config_file_path)
 {
 	initParams(config_file_path);
-	border_ = 0;
+	border_ = 6;
 	swarm_ = (particle*)malloc(particle_num_ * sizeof(particle));
 	int height = global_map_.height_ + 2 * border_;
 	int width  = global_map_.width_  + 2 * border_;
@@ -209,6 +212,7 @@ void PSO::getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, 
 			layers_[0].at<uint16_t>(i + border_, j + border_) = cur_T > (global_map.map_[i * global_map_.width_ + j].search_time + FORGET_TIME) ? FORGET_TIME : (cur_T - global_map.map_[i * global_map_.width_ + j].search_time);
 		}
 	}
+
 
 	for (int layer_idx = 0; layer_idx < layers_.size() - 1; layer_idx++) 
 		cv::pyrDown(layers_[layer_idx], layers_[layer_idx + 1], cv::Size(layers_[layer_idx + 1].cols, layers_[layer_idx + 1].rows));
@@ -312,11 +316,11 @@ void PSO::spreadSwarm() {
 double PSO::calculateFitness(particle* particle){
 
 	bool bad_location = false;
-	if(!global_map_.isInBound(particle->state.position, 1000.0))
+	if(!global_map_.isInBound(particle->state.position, 2000.0))
 		bad_location = true;
 	else {
 		for(auto radar:(*radar_)){
-			if(radar.isInRader(particle->state.position, 1000.0)){
+			if(radar.isInRader(particle->state.position, 2000.0)){
 				bad_location = true;
 				break;
 			}
@@ -338,7 +342,7 @@ double PSO::calculateFitness(particle* particle){
 	//double p  = (1 - exp(-tao * t)) ;
 	double d = utility::dubinsDistance(cur_uav_->state, particle->state, min_R_);
 	d = (d - cur_uav_->search_r) / cur_uav_->search_r ;
-	fitness_1 =  t / (0.1 + d * d ) * 0.1;
+	fitness_1 =  t / (0.001 + d * d ) * 0.001;
 
 	for (int uav_id = 0; uav_id < uav_->size(); uav_id++) {  //uav avoidance
 		if(uav_id == cur_uav_->id) continue;
