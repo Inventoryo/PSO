@@ -1,0 +1,21 @@
+### opencv
+set(WITH_EIGEN OFF)
+set(WITH_QUIRC OFF)
+set(BUILD_opencv_apps OFF)
+set(BUILD_PACKAGE OFF)
+set(BUILD_PERF_TESTS OFF)
+set(WITH_PROTOBUF OFF)
+set(BUILD_TESTS OFF)
+set(BUILD_WITH_STATIC_CRT OFF)
+set(BUILD_JAVA OFF)
+set(BUILD_KOTLIN_EXTENSIONS OFF)
+set(BUILD_opencv_python2 OFF)
+set(BUILD_opencv_python3 OFF)
+set(OPENCV_PYTHON_SKIP_DETECTION ON)
+set(WITH_LAPACK OFF)
+set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/../lib/opencv/)
+add_subdirectory(opencv)
+
+### iniparser
+set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/../lib/iniparser/)
+add_subdirectory(iniparser)

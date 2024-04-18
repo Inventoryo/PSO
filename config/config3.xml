@@ -1,0 +1,54 @@
+[common_param]
+run_mode = 0
+max_simulation_step = 2000
+
+[map_param]
+resolution = 100
+width = 500;
+height = 500;
+
+[radar_param]
+radar_params = # 15000,15000,2200, 30000,30000,3300, 20000,40000,3300, 40000,20000,4400#, 20000,30000,6000 #x,y,r
+
+[target_param]
+# target_status_slow   = #5000,40000,8,0,30000,25000,8,0.5,33000,30000,8,1,32000,42000,8,4,40000,45000,8,3.14 # px, py, vx, vy
+# target_status_middle = 20000,30000,20,3.14, 35000,35000,20,1.5, 10000,30000,20,-1.7 #, 4000,5000,18,1.1, 35000,1000,18,2.0  # px, py, vx, vy
+# target_status_fast   = 15000,20000,20,1.7, 29000,20000,20,2.3, 46000,22000,20,1.6 #,10000,11000,28,2.6,5000,10000,28,4.5,1000,30000,28,0.5  # px, py, vx, vy
+
+target_status_slow   = 5000,40000,0,0, 30000,25000,0,0.5, 33000,30000,0,1, 32000,42000,0,4, 40000,45000,0,3.14 # px, py, vx, vy
+target_status_middle = 45000,15000,0,1.2, 20000,45000,0,1.5, 20000,41000,0,1.7, 4000,6000,0,1.1, 35000,1000,0,2.0  # px, py, vx, vy
+target_status_fast   = 10000,20000,0,1.7, 25000,30000,0,2.3, 10000,11000,0,2.6, 5000,10000,0,4.5, 1000,30000,0,0.5  # px, py, vx, vy
+
+[uav_param]
+# uav_status_slow   =  # 10000,900,25,0,10000,950,25,1.2,10000,1000,25,2.5 # px, py, vx, vy
+# uav_status_middle = 9000,50000,50,-1.57, 18000,0,50,1.57, 27000,50000,50,-1.57, 36000,0,50,1.57, 45000,50000,50,-1.57 #,9000,950,50,4,9000,1000,50,4.6 # px, py, vx, vy
+# uav_status_fast   = 9000,0,90,1.57, 18000,50000,90,-1.57, 27000,0,90,1.57, 36000,50000,90,-1.57, 45000,0,90,1.57 # 9500,900,90,5,9500,820,90,5.5,9500,1000,90,6 # px, py, vx, vy
+uav_status_extre  = 50000,20000,50,3.10
+extre_step = 30000
+
+uav_status_slow   =  # 10000,900,25,0,10000,950,25,1.2,10000,1000,25,2.5 # px, py, vx, vy
+uav_status_middle = # 0
+uav_status_fast   = 5000,5000,90,1.57, 45000,45000,90,-1.57 # px, py, vx, vy
+
+[pso_param]
+tao = 1.0
+weight = 1.0
+c1 = 2.0
+c2 = 2.0
+w2 = 0 # 2.0
+eta = 0.5
+max_iteration = 100
+particle_num = 100
+used_layer_num = 3
+
+[file_path]
+uav_path             = "D:/Workspace/PSO/temp/uav.txt"
+target_path          = "D:/Workspace/PSO/temp/target.txt"
+traj_Point_path      = "D:/Workspace/PSO/temp/traj_Point.txt"
+area_Point_path      = "D:/Workspace/PSO/temp/area_Point.txt"
+particle_state_path  = "D:/Workspace/PSO/temp/particle_state.txt"
+uav_state_path       = "D:/Workspace/PSO/temp/uav_state.txt"
+best_state_path      = "D:/Workspace/PSO/temp/best_state.txt"
+cove_rate_PSO        = "D:/Workspace/PSO/temp/cove_rate_PSO.txt"
+time_consume         = "D:/Workspace/PSO/temp/time_consume.txt"
+destroyed_target_num = "D:/Workspace/PSO/temp/destroyed_target_num.txt" 

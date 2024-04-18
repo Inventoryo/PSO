@@ -213,6 +213,18 @@ void PSO::getNextPoint(utility::MAP &global_map, vector<utility::RADAR> &radar, 
 		}
 	}
 
+	// if(cur_T==200){
+	// 	ofstream output;
+	// 	output.open("test.txt", ios::binary);
+	// 	for(int i = 0; i < global_map_.height_; i++){
+	// 		for(int j = 0; j < global_map_.width_; j++){
+	// 			output << static_cast<float>(layers_[0].at<uint16_t>(i + border_, j + border_)) / FORGET_TIME << " ";
+	// 		}
+	// 		output << std::endl;
+	// 	}
+	// 	output.close();
+	// }
+
 
 	for (int layer_idx = 0; layer_idx < layers_.size() - 1; layer_idx++) 
 		cv::pyrDown(layers_[layer_idx], layers_[layer_idx + 1], cv::Size(layers_[layer_idx + 1].cols, layers_[layer_idx + 1].rows));

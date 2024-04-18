@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 message(${CMAKE_C_COMPILER})
 message(${CMAKE_CXX_COMPILER})
 
-set(OpenCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/opencv/mingw_build/install/x64/mingw/staticlib)
+set(OpenCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdParty/opencv/mingw_build/install)
 
 find_package(OpenCV REQUIRED)
 

@@ -1,0 +1,49 @@
+[common_param]
+run_mode = 0
+max_simulation_step = 3000
+
+[map_param]
+resolution = 100
+width = 500;
+height = 500;
+
+[radar_param]
+radar_params = # 15000,15000,2200, 30000,30000,3300, 20000,40000,3300, 40000,20000,4400#, 20000,30000,6000 #x,y,r
+
+[target_param]
+target_status_slow   = 5000,40000,0,0, 30000,25000,0,0.5, 33000,30000,0,1, 32000,42000,0,4, 40000,45000,0,3.14 # px, py, vx, vy
+target_status_middle = 45000,15000,0,1.2, 20000,45000,0,1.5, 20000,41000,0,1.7, 4000,6000,0,1.1, 35000,1000,0,2.0  # px, py, vx, vy
+target_status_fast   = 10000,20000,0,1.7, 2000,30000,0,2.3, 10000,11000,0,2.6, 5000,10000,0,4.5, 1000,30000,0,0.5  # px, py, vx, vy
+
+[uav_param]
+uav_status_slow   = # 10000,900,25,0,10000,950,25,1.2,10000,1000,25,2.5 # px, py, vx, vy
+uav_status_middle = # 0
+uav_status_fast   = 0,20000,90,0, 0,22000,90,0, 0,24000,90,0, 0,26000,90,0, 0,28000,90,0, 0,30000,90,0# px, py, vx, vy
+# uav_status_fast   = 20000,10000,90,1.57, 30000,10000,90,1.57 # , 19000,19000,90,1.57, 29000,34000,90,-1.57, 49000,45000,90,-3.1, 45000,9000,90,-1.57 # px, py, vx, vy
+# uav_status_fast   = 19000,19000,90,0, 19000,21000,90,1.57 # px, py, vx, vy
+# uav_status_fast   = 45000,40000,90,-2.0, 45000,39000,90,-1.9 # px, py, vx, vy
+uav_status_extre  = 50000,20000,50,3.10
+extre_step = 30000
+
+[pso_param]
+tao = 1.0
+weight = 1.0
+c1 = 2.0
+c2 = 2.0
+w2 = 0.0
+eta = 0.6
+max_iteration = 100
+particle_num = 100
+used_layer_num = 3
+
+[file_path]
+uav_path             = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/uav.txt"
+target_path          = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/target.txt"
+traj_Point_path      = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/traj_Point.txt"
+area_Point_path      = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/area_Point.txt"
+particle_state_path  = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/particle_state.txt"
+uav_state_path       = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/uav_state.txt"
+best_state_path      = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/best_state.txt"
+cove_rate_PSO        = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/cove_rate_PSO.txt"
+time_consume         = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/time_consume.txt"
+destroyed_target_num = "D:\Workspace\PSO\mingw_build\DACMP_data_eta_06/destroyed_target_num.txt"

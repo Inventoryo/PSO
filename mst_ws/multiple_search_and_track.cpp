@@ -1,6 +1,7 @@
 
 #include "multiple_search_and_track.h"
 #include <thread>
+#include <chrono>
 #define REPLANNING_NUM 1
 
 #define DESTORY_MODE 1
@@ -129,7 +130,7 @@ void MultipleSearchAndTrack::initParams(const string& config_file_path){
 
 	//uav
 	string uav_status_fast = iniparser_getstring(dict, "uav_param:uav_status_fast", "");
-	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 800, 2000, 2.0, 2.1, 2.0};
+	double uav_limit_fast[11] = {60., 90., -0.6, 0.6, -G * tan(20.0 * PI / 180.0), G * tan(20.0 * PI / 180.0), 800, 500, 2.0, 2.1, 2.0};
 	initUAVFromString(uav_status_fast, uav_limit_fast, uav_, 0);
 
 	string uav_status_middle = iniparser_getstring(dict, "uav_param:uav_status_middle", "");
@@ -372,7 +373,7 @@ void MultipleSearchAndTrack::init(const string& config_file_path) {
 	aco_.setParam(10, 500, 2, 4, 100, 0.8);
 	pso_.create(config_file_path);
 
-	srand((unsigned)time(NULL));
+	//srand((unsigned)time(NULL));
 
 	for ( int i = 0; i < uav_.size(); i++) {
 		utility::UAV& uav_temp = uav_[i];
@@ -394,7 +395,7 @@ void MultipleSearchAndTrack::init(const string& config_file_path) {
 
 void MultipleSearchAndTrack::updateTargetStates() {
 	printf("updateing targets state\n");
-
+	srand((unsigned)time(0));
 	vector<utility::TARGET>::iterator temp_target = target_.begin();
 	int target_tag = 0;
 	for ( ; target_tag < target_.size(); temp_target++, target_tag++) {
@@ -473,7 +474,11 @@ void MultipleSearchAndTrack::updateUAVStates() {
 			start = clock();
 			switch (run_mode_){
 			case 0:{
+				auto t1 = std::chrono::system_clock::now();
 				pso_.getNextPoint(global_map_[cur_uav->id], radar_, target_, uav_, cunt, i);
+				auto t2 = std::chrono::system_clock::now();
+				double duration_ms =  std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count() / 1000000.0;
+				printf("pso_.getNextPoint:%lf\n", duration_ms);
 				break;
 			};
 			case 1:{
